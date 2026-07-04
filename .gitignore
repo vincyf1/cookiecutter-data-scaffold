@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Git worktrees (scratch, used for isolated feature work)
+.worktrees/
