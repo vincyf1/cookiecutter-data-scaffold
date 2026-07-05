@@ -66,7 +66,8 @@ def test_precommit_includes_sqlfluff_only_when_dbt_enabled(cookies):
     assert "sqlfluff" not in without_dbt_config
     assert "ruff-pre-commit" in with_dbt_config
     assert "ruff-pre-commit" in without_dbt_config
-    assert "sqlfluff-templater-dbt" in with_dbt_config
+    assert "sqlfluff-templater-dbt==3.1.0" in with_dbt_config
+    assert "dbt-duckdb>=1.8" in with_dbt_config
 
 
 def test_ci_includes_dbt_test_step_only_when_dbt_enabled(cookies):

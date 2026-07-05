@@ -20,5 +20,5 @@ repos:
     hooks:
       - id: sqlfluff-lint
         files: ^transformation/models/
-        additional_dependencies: ['sqlfluff-templater-dbt', 'dbt-duckdb']
+        additional_dependencies: ['sqlfluff-templater-dbt==3.1.0', 'dbt-duckdb>=1.8']
 {%- endif %}
