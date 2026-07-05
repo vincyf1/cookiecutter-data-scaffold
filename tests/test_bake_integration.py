@@ -1,3 +1,6 @@
+import subprocess
+
+
 def test_batch_sink_uses_lakehouse_writer_when_both_enabled(cookies):
     result = cookies.bake(extra_context={"include_batch": True, "include_lakehouse": True})
     slug = result.context["project_slug"]
@@ -59,3 +62,39 @@ def test_docker_compose_is_valid_yaml_mapping_when_no_services_enabled(cookies):
     result = cookies.bake(extra_context={"include_batch": False, "include_streaming": False})
     compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
     assert compose["services"] == {}
+
+
+def test_full_bake_all_patterns_lints_clean(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": True,
+        "include_streaming": True,
+        "include_lakehouse": True,
+        "include_dbt": True,
+    })
+    assert result.exit_code == 0
+
+    lint = subprocess.run(
+        ["uvx", "ruff", "check", "."],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert lint.returncode == 0, lint.stdout + lint.stderr
+
+
+def test_full_bake_all_patterns_off_lints_clean(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": False,
+        "include_streaming": False,
+        "include_lakehouse": False,
+        "include_dbt": False,
+    })
+    assert result.exit_code == 0
+
+    lint = subprocess.run(
+        ["uvx", "ruff", "check", "."],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert lint.returncode == 0, lint.stdout + lint.stderr
