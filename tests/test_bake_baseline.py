@@ -36,3 +36,19 @@ def test_all_patterns_on_keeps_pattern_dirs(cookies):
     assert (project / "src" / slug / "streaming").is_dir()
     assert (project / "src" / slug / "lakehouse").is_dir()
     assert (project / "transformation").is_dir()
+
+
+def test_pyproject_declares_only_enabled_pattern_deps(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": True,
+        "include_streaming": False,
+        "include_lakehouse": False,
+        "include_dbt": False,
+    })
+    pyproject = (result.project_path / "pyproject.toml").read_text()
+    assert "apache-airflow" in pyproject
+    assert "confluent-kafka" not in pyproject
+    assert "pyiceberg" not in pyproject
+    assert "dbt-duckdb" not in pyproject
+    assert 'requires-python = ">=3.12"' in pyproject
+    assert "[build-system]" in pyproject
