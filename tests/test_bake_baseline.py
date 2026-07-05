@@ -65,3 +65,16 @@ def test_precommit_includes_sqlfluff_only_when_dbt_enabled(cookies):
     assert "sqlfluff" not in without_dbt_config
     assert "ruff-pre-commit" in with_dbt_config
     assert "ruff-pre-commit" in without_dbt_config
+
+
+def test_ci_includes_dbt_test_step_only_when_dbt_enabled(cookies):
+    with_dbt = cookies.bake(extra_context={"include_dbt": True})
+    without_dbt = cookies.bake(extra_context={"include_dbt": False})
+
+    with_dbt_ci = (with_dbt.project_path / ".github" / "workflows" / "ci.yml").read_text()
+    without_dbt_ci = (without_dbt.project_path / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "dbt test" in with_dbt_ci
+    assert "dbt test" not in without_dbt_ci
+    assert "ruff check" in with_dbt_ci
+    assert "pytest" in with_dbt_ci
