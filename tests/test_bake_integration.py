@@ -199,16 +199,6 @@ def test_lakehouse_only_bake_generated_tests_pass(cookies):
 
 
 @pytest.mark.slow
-@pytest.mark.skip(
-    reason=(
-        "apache-airflow pulls a large, slow transitive dependency tree "
-        "(providers, constraints-pinned sub-deps) and constructing a real "
-        "DAG object can require AIRFLOW_HOME/metadata-db setup beyond what "
-        "`uv sync` alone provides. Verified via ruff lint only "
-        "(test_single_pattern_alone_lints_clean in Task 17); real "
-        "install/execution is left to a future task if CI resources allow."
-    )
-)
 def test_batch_only_bake_generated_tests_pass(cookies):
     result = cookies.bake(extra_context={
         "include_batch": True,
