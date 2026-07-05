@@ -109,6 +109,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cookies>=0.7",
     "ruff>=0.6",
+    "pyyaml>=6.0",
 ]
 
 [tool.ruff]
@@ -362,6 +363,7 @@ def test_pyproject_declares_only_enabled_pattern_deps(cookies):
     assert "pyiceberg" not in pyproject
     assert "dbt-duckdb" not in pyproject
     assert 'requires-python = ">=3.12"' in pyproject
+    assert "[build-system]" in pyproject
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -400,6 +402,13 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ cookiecutter.project_slug }}"]
 
 [tool.ruff]
 target-version = "py312"
@@ -1202,6 +1211,14 @@ def test_docker_compose_has_kafka_service_only_when_streaming_enabled(cookies):
     result = cookies.bake(extra_context={"include_streaming": True})
     compose = (result.project_path / "docker-compose.yml").read_text()
     assert "kafka:" in compose
+
+
+def test_docker_compose_is_valid_yaml_mapping_when_no_services_enabled(cookies):
+    import yaml
+
+    result = cookies.bake(extra_context={"include_batch": False, "include_streaming": False})
+    compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
+    assert compose["services"] == {}
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1213,6 +1230,9 @@ Expected: FAIL — `docker-compose.yml` does not exist.
 
 ```yaml
 # {{cookiecutter.project_slug}}/docker-compose.yml
+{%- if not cookiecutter.include_batch and not cookiecutter.include_streaming %}
+services: {}
+{%- else %}
 services:
 {%- if cookiecutter.include_batch %}
   airflow-webserver:
@@ -1237,6 +1257,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+{%- endif %}
 {%- endif %}
 ```
 
