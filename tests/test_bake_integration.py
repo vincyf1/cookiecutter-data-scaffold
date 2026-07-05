@@ -82,6 +82,18 @@ def test_full_bake_all_patterns_lints_clean(cookies):
     assert lint.returncode == 0, lint.stdout + lint.stderr
 
 
+def test_dbt_only_bake_ci_tolerates_no_tests_collected(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": False,
+        "include_streaming": False,
+        "include_lakehouse": False,
+        "include_dbt": True,
+    })
+    assert result.exit_code == 0
+    ci = (result.project_path / ".github" / "workflows" / "ci.yml").read_text()
+    assert "uv run pytest || [ $? -eq 5 ]" in ci
+
+
 def test_full_bake_all_patterns_off_lints_clean(cookies):
     result = cookies.bake(extra_context={
         "include_batch": False,
