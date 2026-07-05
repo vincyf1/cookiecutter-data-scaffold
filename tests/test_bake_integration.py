@@ -89,6 +89,11 @@ def test_full_bake_all_patterns_lints_clean(cookies):
     ["include_batch", "include_streaming", "include_lakehouse", "include_dbt"],
 )
 def test_single_pattern_alone_lints_clean(cookies, flag):
+    # For include_dbt, this only checks that the bake+prune succeeds and
+    # ruff has nothing to complain about (the only Python file left is an
+    # empty src/{slug}/__init__.py) — it is not a meaningful lint gate on
+    # transformation/'s SQL/YAML content. Real dbt-content verification for
+    # the dbt-only combination is test_dbt_only_bake_dbt_build_and_test_pass.
     extra_context = {
         "include_batch": False,
         "include_streaming": False,
