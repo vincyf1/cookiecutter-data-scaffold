@@ -225,3 +225,47 @@ def test_batch_only_bake_generated_tests_pass(cookies):
         text=True,
     )
     assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
+
+
+def test_dbt_only_bake_dbt_build_and_test_pass(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": False,
+        "include_streaming": False,
+        "include_lakehouse": False,
+        "include_dbt": True,
+    })
+    assert result.exit_code == 0
+
+    sync = subprocess.run(
+        ["uv", "sync"],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert sync.returncode == 0, sync.stdout + sync.stderr
+
+    transformation_dir = result.project_path / "transformation"
+
+    deps = subprocess.run(
+        ["uv", "run", "--project", str(result.project_path), "dbt", "deps"],
+        cwd=transformation_dir,
+        capture_output=True,
+        text=True,
+    )
+    assert deps.returncode == 0, deps.stdout + deps.stderr
+
+    build = subprocess.run(
+        ["uv", "run", "--project", str(result.project_path), "dbt", "build"],
+        cwd=transformation_dir,
+        capture_output=True,
+        text=True,
+    )
+    assert build.returncode == 0, build.stdout + build.stderr
+
+    dbt_test = subprocess.run(
+        ["uv", "run", "--project", str(result.project_path), "dbt", "test"],
+        cwd=transformation_dir,
+        capture_output=True,
+        text=True,
+    )
+    assert dbt_test.returncode == 0, dbt_test.stdout + dbt_test.stderr
