@@ -137,3 +137,91 @@ def test_full_bake_all_patterns_off_lints_clean(cookies):
         text=True,
     )
     assert lint.returncode == 0, lint.stdout + lint.stderr
+
+
+def test_streaming_only_bake_generated_tests_pass(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": False,
+        "include_streaming": True,
+        "include_lakehouse": False,
+        "include_dbt": False,
+    })
+    assert result.exit_code == 0
+
+    sync = subprocess.run(
+        ["uv", "sync"],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert sync.returncode == 0, sync.stdout + sync.stderr
+
+    pytest_run = subprocess.run(
+        ["uv", "run", "pytest", "-v"],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
+
+
+def test_lakehouse_only_bake_generated_tests_pass(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": False,
+        "include_streaming": False,
+        "include_lakehouse": True,
+        "include_dbt": False,
+    })
+    assert result.exit_code == 0
+
+    sync = subprocess.run(
+        ["uv", "sync"],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert sync.returncode == 0, sync.stdout + sync.stderr
+
+    pytest_run = subprocess.run(
+        ["uv", "run", "pytest", "-v"],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
+
+
+@pytest.mark.skip(
+    reason=(
+        "apache-airflow pulls a large, slow transitive dependency tree "
+        "(providers, constraints-pinned sub-deps) and constructing a real "
+        "DAG object can require AIRFLOW_HOME/metadata-db setup beyond what "
+        "`uv sync` alone provides. Verified via ruff lint only "
+        "(test_single_pattern_alone_lints_clean in Task 17); real "
+        "install/execution is left to a future task if CI resources allow."
+    )
+)
+def test_batch_only_bake_generated_tests_pass(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": True,
+        "include_streaming": False,
+        "include_lakehouse": False,
+        "include_dbt": False,
+    })
+    assert result.exit_code == 0
+
+    sync = subprocess.run(
+        ["uv", "sync"],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert sync.returncode == 0, sync.stdout + sync.stderr
+
+    pytest_run = subprocess.run(
+        ["uv", "run", "pytest", "-v"],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
