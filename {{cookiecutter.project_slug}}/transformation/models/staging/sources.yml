@@ -1,0 +1,7 @@
+version: 2
+
+sources:
+  - name: lakehouse
+    schema: main
+    tables:
+      - name: events

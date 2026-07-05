@@ -16,6 +16,7 @@ REMOVAL_RULES = [
     ("{{ cookiecutter.include_lakehouse }}" == "True", [
         f"src/{SLUG}/lakehouse",
         "tests/test_lakehouse_writer.py",
+        "transformation/models/staging/sources.yml",
     ]),
     ("{{ cookiecutter.include_dbt }}" == "True", [
         "transformation",
