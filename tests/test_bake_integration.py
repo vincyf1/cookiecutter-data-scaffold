@@ -144,6 +144,7 @@ def test_full_bake_all_patterns_off_lints_clean(cookies):
     assert lint.returncode == 0, lint.stdout + lint.stderr
 
 
+@pytest.mark.slow
 def test_streaming_only_bake_generated_tests_pass(cookies):
     result = cookies.bake(extra_context={
         "include_batch": False,
@@ -170,6 +171,7 @@ def test_streaming_only_bake_generated_tests_pass(cookies):
     assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
 
 
+@pytest.mark.slow
 def test_lakehouse_only_bake_generated_tests_pass(cookies):
     result = cookies.bake(extra_context={
         "include_batch": False,
@@ -196,6 +198,7 @@ def test_lakehouse_only_bake_generated_tests_pass(cookies):
     assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
 
 
+@pytest.mark.slow
 @pytest.mark.skip(
     reason=(
         "apache-airflow pulls a large, slow transitive dependency tree "
@@ -232,6 +235,7 @@ def test_batch_only_bake_generated_tests_pass(cookies):
     assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
 
 
+@pytest.mark.slow
 def test_dbt_only_bake_dbt_build_and_test_pass(cookies):
     result = cookies.bake(extra_context={
         "include_batch": False,
