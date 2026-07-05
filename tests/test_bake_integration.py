@@ -1,5 +1,7 @@
 import subprocess
 
+import pytest
+
 
 def test_batch_sink_uses_lakehouse_writer_when_both_enabled(cookies):
     result = cookies.bake(extra_context={"include_batch": True, "include_lakehouse": True})
@@ -71,6 +73,31 @@ def test_full_bake_all_patterns_lints_clean(cookies):
         "include_lakehouse": True,
         "include_dbt": True,
     })
+    assert result.exit_code == 0
+
+    lint = subprocess.run(
+        ["uvx", "ruff", "check", "."],
+        cwd=result.project_path,
+        capture_output=True,
+        text=True,
+    )
+    assert lint.returncode == 0, lint.stdout + lint.stderr
+
+
+@pytest.mark.parametrize(
+    "flag",
+    ["include_batch", "include_streaming", "include_lakehouse", "include_dbt"],
+)
+def test_single_pattern_alone_lints_clean(cookies, flag):
+    extra_context = {
+        "include_batch": False,
+        "include_streaming": False,
+        "include_lakehouse": False,
+        "include_dbt": False,
+    }
+    extra_context[flag] = True
+
+    result = cookies.bake(extra_context=extra_context)
     assert result.exit_code == 0
 
     lint = subprocess.run(
