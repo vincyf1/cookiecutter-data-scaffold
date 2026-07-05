@@ -52,3 +52,16 @@ def test_pyproject_declares_only_enabled_pattern_deps(cookies):
     assert "dbt-duckdb" not in pyproject
     assert 'requires-python = ">=3.12"' in pyproject
     assert "[build-system]" in pyproject
+
+
+def test_precommit_includes_sqlfluff_only_when_dbt_enabled(cookies):
+    with_dbt = cookies.bake(extra_context={"include_dbt": True})
+    without_dbt = cookies.bake(extra_context={"include_dbt": False})
+
+    with_dbt_config = (with_dbt.project_path / ".pre-commit-config.yaml").read_text()
+    without_dbt_config = (without_dbt.project_path / ".pre-commit-config.yaml").read_text()
+
+    assert "sqlfluff" in with_dbt_config
+    assert "sqlfluff" not in without_dbt_config
+    assert "ruff-pre-commit" in with_dbt_config
+    assert "ruff-pre-commit" in without_dbt_config
