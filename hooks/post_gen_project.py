@@ -5,20 +5,20 @@ PROJECT_DIR = os.path.realpath(os.curdir)
 SLUG = "{{ cookiecutter.project_slug }}"
 
 REMOVAL_RULES = [
-    ("{{ cookiecutter.include_batch }}" == "True", [
+    ({{ cookiecutter.include_batch }}, [
         f"src/{SLUG}/batch",
         "tests/test_batch_dag.py",
     ]),
-    ("{{ cookiecutter.include_streaming }}" == "True", [
+    ({{ cookiecutter.include_streaming }}, [
         f"src/{SLUG}/streaming",
         "tests/test_streaming_consumer.py",
     ]),
-    ("{{ cookiecutter.include_lakehouse }}" == "True", [
+    ({{ cookiecutter.include_lakehouse }}, [
         f"src/{SLUG}/lakehouse",
         "tests/test_lakehouse_writer.py",
         "transformation/models/staging/sources.yml",
     ]),
-    ("{{ cookiecutter.include_dbt }}" == "True", [
+    ({{ cookiecutter.include_dbt }}, [
         "transformation",
         ".sqlfluff",
     ]),
