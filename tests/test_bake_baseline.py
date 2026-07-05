@@ -4,6 +4,7 @@ def test_default_bake_succeeds(cookies):
     assert result.exception is None
     assert result.project_path.is_dir()
     assert (result.project_path / "README.md").is_file()
+    assert (result.project_path / ".gitignore").is_file()
 
 
 def test_all_patterns_off_removes_pattern_dirs(cookies):
