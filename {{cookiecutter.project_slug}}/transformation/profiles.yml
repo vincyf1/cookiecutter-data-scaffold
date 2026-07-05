@@ -1,0 +1,7 @@
+{{ cookiecutter.project_slug }}:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: 'dev.duckdb'
+      threads: 4

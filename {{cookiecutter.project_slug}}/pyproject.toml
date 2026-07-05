@@ -1,0 +1,40 @@
+[project]
+name = "{{ cookiecutter.project_slug }}"
+version = "0.1.0"
+description = "{{ cookiecutter.project_name }}"
+authors = [{ name = "{{ cookiecutter.author_name }}" }]
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=1.0",
+    "pyarrow>=17.0",
+{%- if cookiecutter.include_batch %}
+    "apache-airflow>=2.9",
+{%- endif %}
+{%- if cookiecutter.include_streaming %}
+    "confluent-kafka>=2.4",
+{%- endif %}
+{%- if cookiecutter.include_lakehouse %}
+    "pyiceberg>=0.7",
+{%- endif %}
+{%- if cookiecutter.include_dbt %}
+    "dbt-duckdb>=1.8",
+{%- endif %}
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ cookiecutter.project_slug }}"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src"]

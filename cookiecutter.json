@@ -1,0 +1,9 @@
+{
+  "project_name": "My Data Project",
+  "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '_').replace('-', '_') }}",
+  "author_name": "Your Name",
+  "include_batch": true,
+  "include_streaming": true,
+  "include_lakehouse": true,
+  "include_dbt": true
+}
