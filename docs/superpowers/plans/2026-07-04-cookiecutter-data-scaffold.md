@@ -822,9 +822,6 @@ Expected: FAIL — `writer.py` does not exist.
 
 ```sql
 -- {{cookiecutter.project_slug}}/src/{{cookiecutter.project_slug}}/lakehouse/create_tables.sql
-INSTALL iceberg;
-LOAD iceberg;
-
 CREATE TABLE IF NOT EXISTS events (
     id BIGINT,
     name VARCHAR,
