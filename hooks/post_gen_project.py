@@ -20,6 +20,7 @@ REMOVAL_RULES = [
     ]),
     ("{{ cookiecutter.include_dbt }}" == "True", [
         "transformation",
+        ".sqlfluff",
     ]),
 ]
 
