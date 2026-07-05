@@ -6,6 +6,7 @@ authors = [{ name = "{{ cookiecutter.author_name }}" }]
 requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.0",
+    "pyarrow>=17.0",
 {%- if cookiecutter.include_batch %}
     "apache-airflow>=2.9",
 {%- endif %}
