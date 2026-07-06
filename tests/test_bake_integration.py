@@ -1,6 +1,6 @@
-import subprocess
-
 import pytest
+
+from conftest import run_cmd
 
 
 def test_batch_sink_uses_lakehouse_writer_when_both_enabled(cookies):
@@ -75,13 +75,7 @@ def test_full_bake_all_patterns_lints_clean(cookies):
     })
     assert result.exit_code == 0
 
-    lint = subprocess.run(
-        ["uvx", "ruff", "check", "."],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert lint.returncode == 0, lint.stdout + lint.stderr
+    run_cmd(result.project_path, "uvx", "ruff", "check", ".")
 
 
 @pytest.mark.parametrize(
@@ -105,13 +99,7 @@ def test_single_pattern_alone_lints_clean(cookies, flag):
     result = cookies.bake(extra_context=extra_context)
     assert result.exit_code == 0
 
-    lint = subprocess.run(
-        ["uvx", "ruff", "check", "."],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert lint.returncode == 0, lint.stdout + lint.stderr
+    run_cmd(result.project_path, "uvx", "ruff", "check", ".")
 
 
 def test_dbt_only_bake_ci_tolerates_no_tests_collected(cookies):
@@ -135,13 +123,7 @@ def test_full_bake_all_patterns_off_lints_clean(cookies):
     })
     assert result.exit_code == 0
 
-    lint = subprocess.run(
-        ["uvx", "ruff", "check", "."],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert lint.returncode == 0, lint.stdout + lint.stderr
+    run_cmd(result.project_path, "uvx", "ruff", "check", ".")
 
 
 @pytest.mark.slow
@@ -154,21 +136,8 @@ def test_streaming_only_bake_generated_tests_pass(cookies):
     })
     assert result.exit_code == 0
 
-    sync = subprocess.run(
-        ["uv", "sync"],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert sync.returncode == 0, sync.stdout + sync.stderr
-
-    pytest_run = subprocess.run(
-        ["uv", "run", "pytest", "-v"],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
+    run_cmd(result.project_path, "uv", "sync")
+    run_cmd(result.project_path, "uv", "run", "pytest", "-v")
 
 
 @pytest.mark.slow
@@ -181,21 +150,8 @@ def test_lakehouse_only_bake_generated_tests_pass(cookies):
     })
     assert result.exit_code == 0
 
-    sync = subprocess.run(
-        ["uv", "sync"],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert sync.returncode == 0, sync.stdout + sync.stderr
-
-    pytest_run = subprocess.run(
-        ["uv", "run", "pytest", "-v"],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
+    run_cmd(result.project_path, "uv", "sync")
+    run_cmd(result.project_path, "uv", "run", "pytest", "-v")
 
 
 @pytest.mark.slow
@@ -208,21 +164,8 @@ def test_batch_only_bake_generated_tests_pass(cookies):
     })
     assert result.exit_code == 0
 
-    sync = subprocess.run(
-        ["uv", "sync"],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert sync.returncode == 0, sync.stdout + sync.stderr
-
-    pytest_run = subprocess.run(
-        ["uv", "run", "pytest", "-v"],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert pytest_run.returncode == 0, pytest_run.stdout + pytest_run.stderr
+    run_cmd(result.project_path, "uv", "sync")
+    run_cmd(result.project_path, "uv", "run", "pytest", "-v")
 
 
 @pytest.mark.slow
@@ -235,36 +178,9 @@ def test_dbt_only_bake_dbt_build_and_test_pass(cookies):
     })
     assert result.exit_code == 0
 
-    sync = subprocess.run(
-        ["uv", "sync"],
-        cwd=result.project_path,
-        capture_output=True,
-        text=True,
-    )
-    assert sync.returncode == 0, sync.stdout + sync.stderr
+    run_cmd(result.project_path, "uv", "sync")
 
     transformation_dir = result.project_path / "transformation"
-
-    deps = subprocess.run(
-        ["uv", "run", "--project", str(result.project_path), "dbt", "deps"],
-        cwd=transformation_dir,
-        capture_output=True,
-        text=True,
-    )
-    assert deps.returncode == 0, deps.stdout + deps.stderr
-
-    build = subprocess.run(
-        ["uv", "run", "--project", str(result.project_path), "dbt", "build"],
-        cwd=transformation_dir,
-        capture_output=True,
-        text=True,
-    )
-    assert build.returncode == 0, build.stdout + build.stderr
-
-    dbt_test = subprocess.run(
-        ["uv", "run", "--project", str(result.project_path), "dbt", "test"],
-        cwd=transformation_dir,
-        capture_output=True,
-        text=True,
-    )
-    assert dbt_test.returncode == 0, dbt_test.stdout + dbt_test.stderr
+    run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "deps")
+    run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "build")
+    run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "test")
