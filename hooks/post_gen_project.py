@@ -12,6 +12,7 @@ REMOVAL_RULES = [
     ({{ cookiecutter.include_streaming }}, [
         f"src/{SLUG}/streaming",
         "tests/test_streaming_consumer.py",
+        "tests/test_streaming_sinks.py",
     ]),
     ({{ cookiecutter.include_lakehouse }}, [
         f"src/{SLUG}/lakehouse",
