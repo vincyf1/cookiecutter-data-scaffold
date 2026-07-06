@@ -16,7 +16,7 @@ dependencies = [
     "confluent-kafka>=2.4",
 {%- endif %}
 {%- if cookiecutter.include_dbt %}
-    "dbt-duckdb>=1.8",
+    "dbt-duckdb>={{ cookiecutter.dbt_duckdb_version }}",
 {%- endif %}
 ]
 
