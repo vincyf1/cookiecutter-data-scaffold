@@ -2,7 +2,7 @@ import os
 import shutil
 
 PROJECT_DIR = os.path.realpath(os.curdir)
-SLUG = "{{ cookiecutter.project_slug }}"
+SLUG = {{ cookiecutter.project_slug | tojson }}
 
 REMOVAL_RULES = [
     ({{ cookiecutter.include_batch }}, [

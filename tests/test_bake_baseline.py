@@ -1,3 +1,7 @@
+import os
+import uuid
+
+
 def test_default_bake_succeeds(cookies):
     result = cookies.bake()
     assert result.exit_code == 0
@@ -109,3 +113,17 @@ def test_bake_succeeds_for_project_name_with_spaces_and_hyphens(cookies):
     result = cookies.bake(extra_context={"project_name": "My Cool-Project"})
     assert result.exit_code == 0
     assert result.context["project_slug"] == "my_cool_project"
+
+
+def test_hooks_do_not_execute_code_injected_via_project_name(cookies):
+    marker = f"/tmp/cookiecutter_injection_marker_{uuid.uuid4().hex}"
+    malicious_name = 'x";open(' + repr(marker) + ',"w").close();y="'
+    try:
+        cookies.bake(extra_context={"project_name": malicious_name})
+        assert not os.path.exists(marker), (
+            "hooks/*_gen_project.py executed code injected via project_name "
+            "instead of treating cookiecutter.project_slug as an inert string"
+        )
+    finally:
+        if os.path.exists(marker):
+            os.remove(marker)

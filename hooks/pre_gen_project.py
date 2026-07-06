@@ -1,7 +1,7 @@
 import re
 import sys
 
-PROJECT_SLUG = "{{ cookiecutter.project_slug }}"
+PROJECT_SLUG = {{ cookiecutter.project_slug | tojson }}
 VALID_SLUG_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 if not VALID_SLUG_RE.match(PROJECT_SLUG):
