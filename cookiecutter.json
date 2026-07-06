@@ -7,5 +7,6 @@
   "include_lakehouse": true,
   "include_dbt": true,
   "dbt_duckdb_version": "1.8",
-  "sqlfluff_version": "3.1.0"
+  "sqlfluff_version": "3.1.0",
+  "airflow_version": "3.2.0"
 }

@@ -5,9 +5,12 @@ model-paths: ["models"]
 seed-paths: ["seeds"]
 {%- if cookiecutter.include_lakehouse %}
 
-# Mirrors src/{{ cookiecutter.project_slug }}/lakehouse/create_tables.sql — ensures
-# the `events` table exists in ../lakehouse.duckdb before models query it via
-# source('lakehouse', 'events'), even if no application code has run yet.
+# Ensures the `events` table exists in ../lakehouse.duckdb before models query
+# it via source('lakehouse', 'events'), even if no application code has run
+# yet. The DDL below is copied verbatim from
+# src/{{ cookiecutter.project_slug }}/lakehouse/create_tables.sql by
+# hooks/post_gen_project.py at generation time — edit that file, not this
+# placeholder, when the schema changes.
 on-run-start:
-  - "CREATE TABLE IF NOT EXISTS events (id BIGINT, name VARCHAR, ingested_at TIMESTAMP DEFAULT now())"
+  - "__LAKEHOUSE_CREATE_TABLE_DDL__"
 {%- endif %}

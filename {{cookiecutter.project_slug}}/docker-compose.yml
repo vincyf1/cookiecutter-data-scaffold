@@ -5,7 +5,7 @@ services: {}
 services:
 {%- if cookiecutter.include_batch %}
   airflow-webserver:
-    image: apache/airflow:2.9.3
+    image: apache/airflow:{{ cookiecutter.airflow_version }}
     command: webserver
     ports:
       - "8080:8080"

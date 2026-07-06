@@ -10,7 +10,7 @@ dependencies = [
     "duckdb>=1.0",
 {%- endif %}
 {%- if cookiecutter.include_batch %}
-    "apache-airflow>=2.9",
+    "apache-airflow>={{ cookiecutter.airflow_version }}",
 {%- endif %}
 {%- if cookiecutter.include_streaming %}
     "confluent-kafka>=2.4",

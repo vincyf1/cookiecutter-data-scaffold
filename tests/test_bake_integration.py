@@ -1,33 +1,41 @@
 import pytest
 
-from conftest import run_cmd
+from conftest import bake_with, run_cmd
 
 
-def test_batch_sink_uses_lakehouse_writer_when_both_enabled(cookies):
-    result = cookies.bake(extra_context={"include_batch": True, "include_lakehouse": True})
+def test_shared_sink_uses_lakehouse_writer_when_enabled(cookies):
+    result = bake_with(cookies, include_lakehouse=True)
     slug = result.context["project_slug"]
-    sinks = (result.project_path / "src" / slug / "batch" / "sinks.py").read_text()
+    sinks = (result.project_path / "src" / slug / "sinks.py").read_text()
     assert "lakehouse.writer" in sinks
     assert "pyarrow" not in sinks
 
 
-def test_batch_sink_uses_parquet_when_lakehouse_disabled(cookies):
-    result = cookies.bake(extra_context={"include_batch": True, "include_lakehouse": False})
+def test_shared_sink_uses_parquet_when_lakehouse_disabled(cookies):
+    result = bake_with(cookies, include_lakehouse=False)
     slug = result.context["project_slug"]
-    sinks = (result.project_path / "src" / slug / "batch" / "sinks.py").read_text()
+    sinks = (result.project_path / "src" / slug / "sinks.py").read_text()
     assert "lakehouse.writer" not in sinks
     assert "pyarrow" in sinks
 
 
-def test_streaming_sink_uses_lakehouse_writer_when_both_enabled(cookies):
-    result = cookies.bake(extra_context={"include_streaming": True, "include_lakehouse": True})
+def test_batch_and_streaming_sinks_delegate_to_shared_sink(cookies):
+    result = bake_with(cookies, include_batch=True, include_streaming=True)
     slug = result.context["project_slug"]
-    sinks = (result.project_path / "src" / slug / "streaming" / "sinks.py").read_text()
-    assert "lakehouse.writer" in sinks
+    batch_sinks = (result.project_path / "src" / slug / "batch" / "sinks.py").read_text()
+    streaming_sinks = (result.project_path / "src" / slug / "streaming" / "sinks.py").read_text()
+    assert f"{slug}.sinks import" in batch_sinks
+    assert f"{slug}.sinks import" in streaming_sinks
+
+
+def test_shared_sink_removed_when_batch_and_streaming_both_disabled(cookies):
+    result = bake_with(cookies, include_batch=False, include_streaming=False)
+    slug = result.context["project_slug"]
+    assert not (result.project_path / "src" / slug / "sinks.py").exists()
 
 
 def test_dbt_sources_reference_lakehouse_when_both_enabled(cookies):
-    result = cookies.bake(extra_context={"include_dbt": True, "include_lakehouse": True})
+    result = bake_with(cookies, include_dbt=True, include_lakehouse=True)
     staging_dir = result.project_path / "transformation" / "models" / "staging"
     assert (staging_dir / "sources.yml").is_file()
     sources = (staging_dir / "sources.yml").read_text()
@@ -36,14 +44,14 @@ def test_dbt_sources_reference_lakehouse_when_both_enabled(cookies):
 
 
 def test_dbt_sources_absent_when_lakehouse_disabled(cookies):
-    result = cookies.bake(extra_context={"include_dbt": True, "include_lakehouse": False})
+    result = bake_with(cookies, include_dbt=True, include_lakehouse=False)
     staging_dir = result.project_path / "transformation" / "models" / "staging"
     assert not (staging_dir / "sources.yml").exists()
 
 
 def test_docker_compose_has_airflow_service_only_when_batch_enabled(cookies):
-    with_batch = cookies.bake(extra_context={"include_batch": True, "include_streaming": False})
-    without_batch = cookies.bake(extra_context={"include_batch": False, "include_streaming": False})
+    with_batch = bake_with(cookies, include_batch=True, include_streaming=False)
+    without_batch = bake_with(cookies, include_batch=False, include_streaming=False)
 
     with_batch_compose = (with_batch.project_path / "docker-compose.yml").read_text()
     without_batch_compose = (without_batch.project_path / "docker-compose.yml").read_text()
@@ -53,7 +61,7 @@ def test_docker_compose_has_airflow_service_only_when_batch_enabled(cookies):
 
 
 def test_docker_compose_has_kafka_service_only_when_streaming_enabled(cookies):
-    result = cookies.bake(extra_context={"include_streaming": True})
+    result = bake_with(cookies, include_streaming=True)
     compose = (result.project_path / "docker-compose.yml").read_text()
     assert "kafka:" in compose
 
@@ -61,18 +69,13 @@ def test_docker_compose_has_kafka_service_only_when_streaming_enabled(cookies):
 def test_docker_compose_is_valid_yaml_mapping_when_no_services_enabled(cookies):
     import yaml
 
-    result = cookies.bake(extra_context={"include_batch": False, "include_streaming": False})
+    result = bake_with(cookies, include_batch=False, include_streaming=False)
     compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
     assert compose["services"] == {}
 
 
 def test_full_bake_all_patterns_lints_clean(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": True,
-        "include_streaming": True,
-        "include_lakehouse": True,
-        "include_dbt": True,
-    })
+    result = bake_with(cookies)
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uvx", "ruff", "check", ".")
@@ -88,39 +91,41 @@ def test_single_pattern_alone_lints_clean(cookies, flag):
     # empty src/{slug}/__init__.py) — it is not a meaningful lint gate on
     # transformation/'s SQL/YAML content. Real dbt-content verification for
     # the dbt-only combination is test_dbt_only_bake_dbt_build_and_test_pass.
-    extra_context = {
+    all_off = {
         "include_batch": False,
         "include_streaming": False,
         "include_lakehouse": False,
         "include_dbt": False,
     }
-    extra_context[flag] = True
+    all_off[flag] = True
 
-    result = cookies.bake(extra_context=extra_context)
+    result = bake_with(cookies, **all_off)
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uvx", "ruff", "check", ".")
 
 
 def test_dbt_only_bake_ci_tolerates_no_tests_collected(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": False,
-        "include_streaming": False,
-        "include_lakehouse": False,
-        "include_dbt": True,
-    })
+    result = bake_with(
+        cookies,
+        include_batch=False,
+        include_streaming=False,
+        include_lakehouse=False,
+        include_dbt=True,
+    )
     assert result.exit_code == 0
     ci = (result.project_path / ".github" / "workflows" / "ci.yml").read_text()
     assert "uv run pytest || [ $? -eq 5 ]" in ci
 
 
 def test_full_bake_all_patterns_off_lints_clean(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": False,
-        "include_streaming": False,
-        "include_lakehouse": False,
-        "include_dbt": False,
-    })
+    result = bake_with(
+        cookies,
+        include_batch=False,
+        include_streaming=False,
+        include_lakehouse=False,
+        include_dbt=False,
+    )
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uvx", "ruff", "check", ".")
@@ -128,12 +133,13 @@ def test_full_bake_all_patterns_off_lints_clean(cookies):
 
 @pytest.mark.slow
 def test_streaming_only_bake_generated_tests_pass(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": False,
-        "include_streaming": True,
-        "include_lakehouse": False,
-        "include_dbt": False,
-    })
+    result = bake_with(
+        cookies,
+        include_batch=False,
+        include_streaming=True,
+        include_lakehouse=False,
+        include_dbt=False,
+    )
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uv", "sync")
@@ -142,12 +148,13 @@ def test_streaming_only_bake_generated_tests_pass(cookies):
 
 @pytest.mark.slow
 def test_lakehouse_only_bake_generated_tests_pass(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": False,
-        "include_streaming": False,
-        "include_lakehouse": True,
-        "include_dbt": False,
-    })
+    result = bake_with(
+        cookies,
+        include_batch=False,
+        include_streaming=False,
+        include_lakehouse=True,
+        include_dbt=False,
+    )
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uv", "sync")
@@ -156,12 +163,13 @@ def test_lakehouse_only_bake_generated_tests_pass(cookies):
 
 @pytest.mark.slow
 def test_batch_only_bake_generated_tests_pass(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": True,
-        "include_streaming": False,
-        "include_lakehouse": False,
-        "include_dbt": False,
-    })
+    result = bake_with(
+        cookies,
+        include_batch=True,
+        include_streaming=False,
+        include_lakehouse=False,
+        include_dbt=False,
+    )
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uv", "sync")
@@ -170,12 +178,13 @@ def test_batch_only_bake_generated_tests_pass(cookies):
 
 @pytest.mark.slow
 def test_dbt_only_bake_dbt_build_and_test_pass(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": False,
-        "include_streaming": False,
-        "include_lakehouse": False,
-        "include_dbt": True,
-    })
+    result = bake_with(
+        cookies,
+        include_batch=False,
+        include_streaming=False,
+        include_lakehouse=False,
+        include_dbt=True,
+    )
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uv", "sync")
@@ -188,12 +197,13 @@ def test_dbt_only_bake_dbt_build_and_test_pass(cookies):
 
 @pytest.mark.slow
 def test_dbt_and_lakehouse_both_enabled_dbt_build_and_test_pass(cookies):
-    result = cookies.bake(extra_context={
-        "include_batch": False,
-        "include_streaming": False,
-        "include_lakehouse": True,
-        "include_dbt": True,
-    })
+    result = bake_with(
+        cookies,
+        include_batch=False,
+        include_streaming=False,
+        include_lakehouse=True,
+        include_dbt=True,
+    )
     assert result.exit_code == 0
 
     run_cmd(result.project_path, "uv", "sync")
@@ -213,10 +223,7 @@ def test_docker_compose_is_valid_yaml_for_all_batch_streaming_combinations(
 ):
     import yaml
 
-    result = cookies.bake(extra_context={
-        "include_batch": include_batch,
-        "include_streaming": include_streaming,
-    })
+    result = bake_with(cookies, include_batch=include_batch, include_streaming=include_streaming)
     compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
     assert isinstance(compose["services"], dict)
     assert ("airflow-webserver" in compose["services"]) == include_batch
