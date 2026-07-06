@@ -184,3 +184,21 @@ def test_dbt_only_bake_dbt_build_and_test_pass(cookies):
     run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "deps")
     run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "build")
     run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "test")
+
+
+@pytest.mark.slow
+def test_dbt_and_lakehouse_both_enabled_dbt_build_and_test_pass(cookies):
+    result = cookies.bake(extra_context={
+        "include_batch": False,
+        "include_streaming": False,
+        "include_lakehouse": True,
+        "include_dbt": True,
+    })
+    assert result.exit_code == 0
+
+    run_cmd(result.project_path, "uv", "sync")
+
+    transformation_dir = result.project_path / "transformation"
+    run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "deps")
+    run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "build")
+    run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "test")

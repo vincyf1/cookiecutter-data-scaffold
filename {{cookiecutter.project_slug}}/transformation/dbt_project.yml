@@ -3,3 +3,11 @@ version: '1.0.0'
 profile: '{{ cookiecutter.project_slug }}'
 model-paths: ["models"]
 seed-paths: ["seeds"]
+{%- if cookiecutter.include_lakehouse %}
+
+# Mirrors src/{{ cookiecutter.project_slug }}/lakehouse/create_tables.sql — ensures
+# the `events` table exists in ../lakehouse.duckdb before models query it via
+# source('lakehouse', 'events'), even if no application code has run yet.
+on-run-start:
+  - "CREATE TABLE IF NOT EXISTS events (id BIGINT, name VARCHAR, ingested_at TIMESTAMP DEFAULT now())"
+{%- endif %}
