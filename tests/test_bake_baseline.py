@@ -66,6 +66,8 @@ def test_precommit_includes_sqlfluff_only_when_dbt_enabled(cookies):
     assert "sqlfluff" not in without_dbt_config
     assert "ruff-pre-commit" in with_dbt_config
     assert "ruff-pre-commit" in without_dbt_config
+    assert "sqlfluff-templater-dbt==3.1.0" in with_dbt_config
+    assert "dbt-duckdb>=1.8" in with_dbt_config
 
 
 def test_ci_includes_dbt_test_step_only_when_dbt_enabled(cookies):
@@ -79,3 +81,31 @@ def test_ci_includes_dbt_test_step_only_when_dbt_enabled(cookies):
     assert "dbt test" not in without_dbt_ci
     assert "ruff check" in with_dbt_ci
     assert "pytest" in with_dbt_ci
+
+
+def test_duckdb_scoped_to_lakehouse_pyiceberg_removed(cookies):
+    with_lakehouse = cookies.bake(extra_context={"include_lakehouse": True})
+    without_lakehouse = cookies.bake(extra_context={
+        "include_lakehouse": False,
+        "include_dbt": True,
+    })
+    with_pyproject = (with_lakehouse.project_path / "pyproject.toml").read_text()
+    without_pyproject = (without_lakehouse.project_path / "pyproject.toml").read_text()
+
+    assert '"duckdb>=1.0"' in with_pyproject
+    assert '"duckdb>=1.0"' not in without_pyproject
+    assert '"dbt-duckdb>=1.8"' in without_pyproject
+    assert "pyiceberg" not in with_pyproject
+    assert "pyiceberg" not in without_pyproject
+
+
+def test_bake_fails_fast_for_invalid_project_slug(cookies):
+    result = cookies.bake(extra_context={"project_name": "3D Data!"})
+    assert result.exit_code != 0
+    assert result.exception is not None
+
+
+def test_bake_succeeds_for_project_name_with_spaces_and_hyphens(cookies):
+    result = cookies.bake(extra_context={"project_name": "My Cool-Project"})
+    assert result.exit_code == 0
+    assert result.context["project_slug"] == "my_cool_project"

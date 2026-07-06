@@ -3,5 +3,9 @@
   outputs:
     dev:
       type: duckdb
+{%- if cookiecutter.include_lakehouse %}
+      path: '../lakehouse.duckdb'
+{%- else %}
       path: 'dev.duckdb'
+{%- endif %}
       threads: 4

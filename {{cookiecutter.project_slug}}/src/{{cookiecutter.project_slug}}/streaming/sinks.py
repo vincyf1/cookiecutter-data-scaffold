@@ -17,6 +17,9 @@ OUTPUT_DIR = Path("data/events")
 
 def write_events(records: list[dict]) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    table = pa.Table.from_pylist(records)
-    pq.write_table(table, OUTPUT_DIR / "events_stream.parquet", compression="snappy")
+    path = OUTPUT_DIR / "events_stream.parquet"
+    new_table = pa.Table.from_pylist(records)
+    if path.exists():
+        new_table = pa.concat_tables([pq.read_table(path), new_table])
+    pq.write_table(new_table, path, compression="snappy")
 {%- endif %}

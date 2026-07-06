@@ -1,4 +1,5 @@
-{%- if not cookiecutter.include_batch and not cookiecutter.include_streaming %}
+{%- set service_patterns = [cookiecutter.include_batch, cookiecutter.include_streaming] %}
+{%- if service_patterns | select | list | length == 0 %}
 services: {}
 {%- else %}
 services:

@@ -5,5 +5,7 @@
   "include_batch": true,
   "include_streaming": true,
   "include_lakehouse": true,
-  "include_dbt": true
+  "include_dbt": true,
+  "dbt_duckdb_version": "1.8",
+  "sqlfluff_version": "3.1.0"
 }

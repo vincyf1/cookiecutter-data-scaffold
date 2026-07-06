@@ -20,3 +20,6 @@ line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: marks tests that perform real network installs (uv sync) and execute a generated project's dependencies; deselect with -m \"not slow\"",
+]
