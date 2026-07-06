@@ -28,7 +28,7 @@ def run(bootstrap_servers: str = "localhost:9092") -> None:
             try:
                 record = handle_message(msg.value())
             except json.JSONDecodeError:
-                logger.warning("Skipping malformed message: %r", msg.value())
+                logger.warning("Skipping malformed message (%d bytes)", len(msg.value()))
                 continue
             write_events([record])
     finally:
