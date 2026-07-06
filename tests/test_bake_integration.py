@@ -202,3 +202,22 @@ def test_dbt_and_lakehouse_both_enabled_dbt_build_and_test_pass(cookies):
     run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "deps")
     run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "build")
     run_cmd(transformation_dir, "uv", "run", "--project", str(result.project_path), "dbt", "test")
+
+
+@pytest.mark.parametrize(
+    "include_batch,include_streaming",
+    [(True, False), (False, True), (True, True), (False, False)],
+)
+def test_docker_compose_is_valid_yaml_for_all_batch_streaming_combinations(
+    cookies, include_batch, include_streaming
+):
+    import yaml
+
+    result = cookies.bake(extra_context={
+        "include_batch": include_batch,
+        "include_streaming": include_streaming,
+    })
+    compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
+    assert isinstance(compose["services"], dict)
+    assert ("airflow-webserver" in compose["services"]) == include_batch
+    assert ("kafka" in compose["services"]) == include_streaming
