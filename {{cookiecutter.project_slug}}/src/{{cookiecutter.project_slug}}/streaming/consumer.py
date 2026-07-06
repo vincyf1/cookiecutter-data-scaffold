@@ -1,10 +1,12 @@
 import json
+import logging
 
 from confluent_kafka import Consumer
 
 from {{ cookiecutter.project_slug }}.streaming.sinks import write_events
 
 TOPIC = "events"
+logger = logging.getLogger(__name__)
 
 
 def handle_message(raw_value: bytes) -> dict:
@@ -23,7 +25,11 @@ def run(bootstrap_servers: str = "localhost:9092") -> None:
             msg = consumer.poll(1.0)
             if msg is None or msg.error():
                 continue
-            record = handle_message(msg.value())
+            try:
+                record = handle_message(msg.value())
+            except json.JSONDecodeError:
+                logger.warning("Skipping malformed message: %r", msg.value())
+                continue
             write_events([record])
     finally:
         consumer.close()
