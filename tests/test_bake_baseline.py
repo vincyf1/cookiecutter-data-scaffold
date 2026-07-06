@@ -97,3 +97,15 @@ def test_duckdb_scoped_to_lakehouse_pyiceberg_removed(cookies):
     assert '"dbt-duckdb>=1.8"' in without_pyproject
     assert "pyiceberg" not in with_pyproject
     assert "pyiceberg" not in without_pyproject
+
+
+def test_bake_fails_fast_for_invalid_project_slug(cookies):
+    result = cookies.bake(extra_context={"project_name": "3D Data!"})
+    assert result.exit_code != 0
+    assert result.exception is not None
+
+
+def test_bake_succeeds_for_project_name_with_spaces_and_hyphens(cookies):
+    result = cookies.bake(extra_context={"project_name": "My Cool-Project"})
+    assert result.exit_code == 0
+    assert result.context["project_slug"] == "my_cool_project"
