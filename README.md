@@ -67,6 +67,8 @@ uv run pytest
 
 ## Detailed Usage
 
+> For a full walkthrough — prerequisites, installing `cookiecutter`, all template variables, running the Docker demo services, and troubleshooting — see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+
 ### Template options
 
 These are the variables you'll be prompted for (see [`cookiecutter.json`](cookiecutter.json)):
