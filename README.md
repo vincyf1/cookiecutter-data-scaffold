@@ -131,8 +131,6 @@ Contributions are welcome, from typo fixes to new Patterns.
 3. If you add or change a Pattern, update the manifest in [`hooks/post_gen_project.py`](hooks/post_gen_project.py) and add coverage in `tests/test_bake_*.py` — `tests/test_pattern_manifest.py` will fail the build if a Pattern's files aren't declared there.
 4. Open a PR describing the change and why it's needed.
 
-See [`CONTEXT.md`](CONTEXT.md) for the project's domain language (what "Pattern" means, how Patterns relate to each other) before naming anything new.
-
 ## License
 
 Distributed under the [MIT License](LICENSE).
