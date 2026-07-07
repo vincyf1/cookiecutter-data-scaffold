@@ -4,14 +4,17 @@ services: {}
 {%- else %}
 services:
 {%- if cookiecutter.include_batch %}
-  airflow-webserver:
+  airflow-standalone:
     image: apache/airflow:{{ cookiecutter.airflow_version }}
-    command: webserver
+    command: standalone
     ports:
       - "8080:8080"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      PYTHONPATH: /opt/airflow/project/src
+      _PIP_ADDITIONAL_REQUIREMENTS: "pyarrow>=17.0{% if cookiecutter.include_lakehouse %} duckdb>=1.0{% endif %}"
     volumes:
+      - ./src:/opt/airflow/project/src
       - ./src/{{ cookiecutter.project_slug }}/batch/dags:/opt/airflow/dags
 {%- endif %}
 {%- if cookiecutter.include_streaming %}
@@ -20,6 +23,7 @@ services:
     ports:
       - "9092:9092"
     environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093

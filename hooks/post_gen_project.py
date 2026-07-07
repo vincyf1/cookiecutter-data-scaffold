@@ -50,6 +50,7 @@ PATTERNS = [
             "transformation/models/staging/sources.yml",
         ],
         "gated": [
+            "docker-compose.yml",
             "pyproject.toml",
             f"src/{SLUG}/sinks.py",
             f"src/{SLUG}/batch/sinks.py",

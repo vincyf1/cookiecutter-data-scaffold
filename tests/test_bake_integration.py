@@ -56,8 +56,8 @@ def test_docker_compose_has_airflow_service_only_when_batch_enabled(cookies):
     with_batch_compose = (with_batch.project_path / "docker-compose.yml").read_text()
     without_batch_compose = (without_batch.project_path / "docker-compose.yml").read_text()
 
-    assert "airflow-webserver" in with_batch_compose
-    assert "airflow-webserver" not in without_batch_compose
+    assert "airflow-standalone" in with_batch_compose
+    assert "airflow-standalone" not in without_batch_compose
 
 
 def test_docker_compose_has_kafka_service_only_when_streaming_enabled(cookies):
@@ -226,5 +226,5 @@ def test_docker_compose_is_valid_yaml_for_all_batch_streaming_combinations(
     result = bake_with(cookies, include_batch=include_batch, include_streaming=include_streaming)
     compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
     assert isinstance(compose["services"], dict)
-    assert ("airflow-webserver" in compose["services"]) == include_batch
+    assert ("airflow-standalone" in compose["services"]) == include_batch
     assert ("kafka" in compose["services"]) == include_streaming
