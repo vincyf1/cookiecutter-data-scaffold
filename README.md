@@ -40,10 +40,14 @@ Most data engineering templates force an early, exclusive choice: "batch project
 
 ## Quickstart
 
-Requires Python 3.12+ and [cookiecutter](https://cookiecutter.readthedocs.io/) 2.2+.
+Requires Python 3.12+ and [`uv`](https://docs.astral.sh/uv/).
+
+Starting from scratch, with no virtual environment yet:
 
 ```bash
-pip install cookiecutter
+uv venv
+source .venv/bin/activate  # on Windows: .venv\Scripts\activate
+uv pip install cookiecutter
 cookiecutter gh:vincyf1/cookiecutter-data-scaffold
 ```
 
