@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 
 from {{ cookiecutter.project_slug }}.batch.sinks import write_events
 
