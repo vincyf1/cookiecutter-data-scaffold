@@ -133,6 +133,22 @@ def test_agentic_runner_absent_when_disabled(cookies):
     assert not (result.project_path / "tests" / "test_agentic_runner.py").exists()
 
 
+def test_agentic_publisher_present_when_enabled(cookies):
+    result = bake_with(cookies, include_agentic=True, include_batch=True)
+    slug = result.context["project_slug"]
+    agentic = result.project_path / "src" / slug / "agentic"
+    assert (agentic / "publisher.py").is_file()
+    assert (result.project_path / "tests" / "test_agentic_publisher.py").is_file()
+
+
+def test_agentic_publisher_absent_when_disabled(cookies):
+    result = bake_with(cookies, include_agentic=False, include_batch=True)
+    slug = result.context["project_slug"]
+    agentic = result.project_path / "src" / slug / "agentic"
+    assert not (agentic / "publisher.py").exists()
+    assert not (result.project_path / "tests" / "test_agentic_publisher.py").exists()
+
+
 def test_anthropic_dependency_tracks_the_flag(cookies):
     on = bake_with(cookies, include_agentic=True, include_batch=True)
     off = bake_with(cookies, include_agentic=False, include_batch=True)

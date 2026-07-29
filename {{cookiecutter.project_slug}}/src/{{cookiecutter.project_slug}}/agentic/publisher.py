@@ -1,0 +1,151 @@
+"""Turning an AgentResult into something a human can review.
+
+LocalPatchPublisher is the default because a freshly generated scaffold
+usually has no remote, and a first run that tries to push is a bad first
+impression. The patch artifact is also exactly what the evals score, so
+the diff is the assertable output either way.
+"""
+
+import json
+import os
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol
+
+from {{ cookiecutter.project_slug }}.agentic.contracts import AgentResult
+from {{ cookiecutter.project_slug }}.agentic.tools import ToolContext, render_diff
+
+DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+
+
+@dataclass
+class PublishedPatch:
+    metadata_path: str
+    title: str
+    body: str
+    patch_path: str | None = None
+    url: str | None = None
+
+
+def _title(result: AgentResult) -> str:
+    return f"fix: {result.diagnosis.patch_summary}"
+
+
+def _body(trace_id: str, result: AgentResult) -> str:
+    lines = [
+        "Proposed automatically by the agentic healing DAG. **Review before merging.**",
+        "",
+        f"**Root cause:** {result.diagnosis.root_cause}",
+        f"**Confidence:** {result.diagnosis.confidence}",
+    ]
+    if result.diagnosis.offending_field:
+        lines.append(f"**Offending field:** `{result.diagnosis.offending_field}`")
+    lines += ["", "**Edits:**"]
+    for edit in result.edits:
+        lines.append(f"- `{edit.path}` — {edit.rationale}")
+    lines += ["", f"Trace id: `{trace_id}`"]
+    return "\n".join(lines)
+
+
+class PRPublisher(Protocol):
+    def publish(
+        self, trace_id: str, result: AgentResult, tool_ctx: ToolContext
+    ) -> PublishedPatch: ...
+
+
+class LocalPatchPublisher:
+    """Writes a .patch plus metadata. Requires no credentials."""
+
+    def __init__(self, artifacts_dir: Path = DEFAULT_ARTIFACTS_DIR) -> None:
+        self.artifacts_dir = Path(artifacts_dir)
+
+    def publish(
+        self, trace_id: str, result: AgentResult, tool_ctx: ToolContext
+    ) -> PublishedPatch:
+        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        title = _title(result)
+        body = _body(trace_id, result)
+
+        patch_path: str | None = None
+        diff = render_diff(tool_ctx)
+        if diff:
+            target = self.artifacts_dir / f"{trace_id}.patch"
+            target.write_text(diff)
+            patch_path = str(target)
+
+        metadata = {
+            "trace_id": trace_id,
+            "title": title,
+            "body": body,
+            "confidence": result.diagnosis.confidence,
+            "root_cause": result.diagnosis.root_cause,
+            "offending_field": result.diagnosis.offending_field,
+            "patch_path": patch_path,
+            "edits": [e.model_dump() for e in result.edits],
+        }
+        metadata_path = self.artifacts_dir / f"{trace_id}.json"
+        metadata_path.write_text(json.dumps(metadata, indent=2))
+
+        return PublishedPatch(
+            metadata_path=str(metadata_path),
+            title=title,
+            body=body,
+            patch_path=patch_path,
+        )
+
+
+class GitHubPublisher:
+    """Opt-in: branches, applies, pushes, and opens a PR via the gh CLI.
+
+    Enable by setting AGENTIC_GITHUB_REPO. Requires push credentials and an
+    authenticated `gh` in the Airflow worker -- which is exactly why it is
+    not the default.
+    """
+
+    def __init__(self, repo: str, base_branch: str = "main") -> None:
+        self.repo = repo
+        self.base_branch = base_branch
+
+    def publish(
+        self, trace_id: str, result: AgentResult, tool_ctx: ToolContext
+    ) -> PublishedPatch:
+        local = LocalPatchPublisher(tool_ctx.project_root / "artifacts").publish(
+            trace_id, result, tool_ctx
+        )
+        if local.patch_path is None:
+            return local
+
+        root = tool_ctx.project_root
+        branch = f"agentic/heal-{trace_id[:8]}"
+
+        def run(*args: str) -> subprocess.CompletedProcess:
+            return subprocess.run(args, cwd=root, check=True, capture_output=True)
+
+        run("git", "checkout", "-b", branch)
+        run("git", "apply", local.patch_path)
+        run("git", "commit", "-am", local.title)
+        run("git", "push", "-u", "origin", branch)
+        created = subprocess.run(
+            [
+                "gh", "pr", "create",
+                "--repo", self.repo,
+                "--base", self.base_branch,
+                "--head", branch,
+                "--title", local.title,
+                "--body", local.body,
+            ],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        local.url = created.stdout.strip()
+        return local
+
+
+def default_publisher() -> PRPublisher:
+    repo = os.environ.get("AGENTIC_GITHUB_REPO")
+    if repo:
+        return GitHubPublisher(repo)
+    return LocalPatchPublisher()
