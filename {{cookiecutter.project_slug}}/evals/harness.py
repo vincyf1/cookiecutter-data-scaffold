@@ -37,9 +37,35 @@ def load_cases() -> list[EvalCase]:
     return cases
 
 
-def _tools_called(trace, expected: list[str]) -> bool:
-    actual = [e.name for e in trace.elements if e.kind == "tool_call"]
-    return actual == expected
+def _tool_calls(trace) -> list[str]:
+    return [e.name for e in trace.elements if e.kind == "tool_call"]
+
+
+def _tools_called(trace, expected: dict) -> bool:
+    """Coverage and ordering, not an exact transcript.
+
+    The criterion exists to prove the agent diagnosed from evidence: it
+    reached for each expected tool, and it read the log *before* it proposed
+    a patch. How many files it opened on the way is behaviour, not a
+    requirement -- asserting the cassette's exact call list would fail a live
+    model that read one file, or three, while behaving correctly. It still
+    fails an agent that skips the log or proposes first, which is the whole
+    point. `exact_tool_sequence` keeps the strict check for replay, where the
+    transcript is fixed by construction.
+    """
+    actual = _tool_calls(trace)
+    if not all(name in actual for name in expected.get("must_call", [])):
+        return False
+    for earlier, later in expected.get("must_precede", []):
+        if earlier not in actual or later not in actual:
+            return False
+        if actual.index(earlier) > actual.index(later):
+            return False
+    return True
+
+
+def _exact_tool_sequence(trace, expected: list[str]) -> bool:
+    return _tool_calls(trace) == expected
 
 
 def _patch_targets(published, expected: str) -> bool:
@@ -60,16 +86,28 @@ def _min_confidence(published, expected: str) -> bool:
     return CONFIDENCE_ORDER.index(meta["confidence"]) >= CONFIDENCE_ORDER.index(expected)
 
 
-def score_case(case: EvalCase, trace, published) -> dict:
+def score_case(case: EvalCase, trace, published, replay: bool = False) -> dict:
+    """Score one case. `replay` adds the criteria only a cassette can satisfy.
+
+    A replayed run's tool transcript is fixed by the cassette, so it can be
+    asserted exactly -- and should be, since a drifted cassette is a real
+    defect. A live run's is not, so the live tier gates on intent only.
+    """
     checks = {
         "tools_called": lambda: _tools_called(trace, case.expect["tools_called"]),
+        "exact_tool_sequence": lambda: _exact_tool_sequence(
+            trace, case.expect["exact_tool_sequence"]
+        ),
         "patch_targets": lambda: _patch_targets(published, case.expect["patch_targets"]),
         "diagnosis_mentions": lambda: _diagnosis_mentions(
             published, case.expect["diagnosis_mentions"]
         ),
         "min_confidence": lambda: _min_confidence(published, case.expect["min_confidence"]),
     }
-    required = {name: checks[name]() for name in case.score["required"]}
+    required_names = list(case.score["required"])
+    if replay:
+        required_names += case.score.get("replay_only", [])
+    required = {name: checks[name]() for name in required_names}
     advisory = {name: checks[name]() for name in case.score["advisory"]}
     return {
         "case_id": case.id,

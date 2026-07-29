@@ -55,5 +55,5 @@ class ReplayRunner:
         return AgentResult(
             diagnosis=diagnosis,
             edits=list(tool_ctx.edits),
-            elements=list(recorder._elements),
+            elements=recorder.elements,
         )

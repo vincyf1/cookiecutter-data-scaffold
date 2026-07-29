@@ -55,8 +55,12 @@ def test_trace_serializes_to_a_json_array():
     assert parsed[1]["name"] == "read_task_log"
 
 
-def test_trace_json_array_omits_trace_level_metadata():
-    # The array holds elements only; correlation columns live beside it in storage.
+def test_trace_json_array_holds_only_elements():
+    # The array holds elements only; the correlation columns (trace_id,
+    # dag_id, ...) live beside it in storage rather than inside it. Asserting
+    # on the exact key set is what makes this a real check: TraceElement has
+    # no trace_id field, so asserting only its absence would hold even
+    # against a to_json_array() that serialized the whole Trace.
     trace = Trace(
         trace_id="t1",
         dag_id="d",
@@ -70,7 +74,40 @@ def test_trace_json_array_omits_trace_level_metadata():
 
     parsed = json.loads(trace.to_json_array())
 
-    assert "trace_id" not in parsed[0]
+    assert set(parsed[0]) == {
+        "seq",
+        "kind",
+        "name",
+        "status",
+        "started_at",
+        "ended_at",
+        "duration_ms",
+    }
+
+
+def test_trace_json_array_omits_unset_optional_fields():
+    # exclude_none is load-bearing, not cosmetic: an element that never
+    # recorded token usage or an error must not claim those keys with null
+    # values. This fails if to_json_array() drops exclude_none.
+    element = _element(0, "tool_call", "read_task_log")
+    element.error = None
+    element.output_summary = None
+    trace = Trace(
+        trace_id="t1",
+        dag_id="d",
+        dag_run_id="r",
+        task_id="load",
+        try_number=1,
+        occurred_at="2026-07-29T00:00:00Z",
+        status="ok",
+        elements=[element],
+    )
+
+    parsed = json.loads(trace.to_json_array())
+
+    assert "error" not in parsed[0]
+    assert "output_summary" not in parsed[0]
+    assert "input_tokens" not in parsed[0]
 
 
 def test_agent_result_holds_diagnosis_edits_and_elements():

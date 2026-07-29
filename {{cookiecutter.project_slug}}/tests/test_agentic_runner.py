@@ -84,6 +84,33 @@ def test_dispatch_tool_rejects_an_unknown_tool(tmp_path):
         dispatch_tool(tool_ctx, "rm_rf", {})
 
 
+@pytest.mark.parametrize(
+    ("tool", "arguments", "missing"),
+    [
+        ("read_task_log", {}, "task_id"),
+        ("read_repo_file", {}, "path"),
+        ("propose_patch", {"path": "src/dag.py"}, "old_str"),
+        (
+            "propose_patch",
+            {"path": "src/dag.py", "old_str": "a", "new_str": "b"},
+            "rationale",
+        ),
+    ],
+)
+def test_dispatch_tool_turns_a_missing_argument_into_a_tool_error(
+    tmp_path, tool, arguments, missing
+):
+    # Tool arguments are model output, so an omitted key is bad input rather
+    # than a bug. A bare KeyError is not a ToolError, so it would escape
+    # ClaudeRunner.run's `except ToolError` handler and fail the whole
+    # healing task instead of coming back to the model as something it can
+    # correct on the next turn.
+    tool_ctx = ToolContext(project_root=tmp_path, log_path=tmp_path / "load.log")
+
+    with pytest.raises(ToolError, match=missing):
+        dispatch_tool(tool_ctx, tool, arguments)
+
+
 def test_fake_runner_produces_a_result_and_records_the_tool_sequence(failure_ctx):
     runner = FakeRunner(
         diagnosis=AgentDiagnosis(

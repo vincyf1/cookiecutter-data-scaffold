@@ -58,7 +58,7 @@ def test_replay_failure_is_not_scored_as_a_pass(tmp_path):
         publisher=LocalPatchPublisher(project / "artifacts"),
     )
 
-    scored = score_case(SCHEMA_DRIFT_CASE, trace, published)
+    scored = score_case(SCHEMA_DRIFT_CASE, trace, published, replay=True)
 
     # patch_targets fails naturally: AgentResult.edits is derived from
     # ToolContext.edits (what dispatch actually staged), and dispatch never

@@ -64,23 +64,42 @@ def _model_kwargs(model: str) -> dict:
     return copy.deepcopy(_MODEL_PARAMS.get(model, {}))
 
 
+def _required(arguments: dict, name: str, tool: str) -> str:
+    """Fetch a required tool argument, or raise something the model can fix.
+
+    Tool arguments are model output, so a missing key is ordinary bad input,
+    not a bug. A bare KeyError is not a ToolError, so it would escape
+    ClaudeRunner.run's `except ToolError` handler, propagate out of the
+    recorder's context manager, and fail the whole healing task -- turning a
+    correctable mistake into a fatal one. Naming the missing key gives the
+    model enough to retry.
+    """
+    try:
+        return arguments[name]
+    except KeyError:
+        raise ToolError(
+            f"tool '{tool}' requires argument '{name}', which was not provided; "
+            f"received arguments: {sorted(arguments)}"
+        ) from None
+
+
 def dispatch_tool(tool_ctx: ToolContext, name: str, arguments: dict) -> str:
     """Route one tool call. The allowlist is this dict and nothing else."""
     if name == "read_task_log":
         return read_task_log(
             tool_ctx,
-            task_id=arguments["task_id"],
+            task_id=_required(arguments, "task_id", name),
             tail_lines=arguments.get("tail_lines", 200),
         )
     if name == "read_repo_file":
-        return read_repo_file(tool_ctx, path=arguments["path"])
+        return read_repo_file(tool_ctx, path=_required(arguments, "path", name))
     if name == "propose_patch":
         return propose_patch(
             tool_ctx,
-            path=arguments["path"],
-            old_str=arguments["old_str"],
-            new_str=arguments["new_str"],
-            rationale=arguments["rationale"],
+            path=_required(arguments, "path", name),
+            old_str=_required(arguments, "old_str", name),
+            new_str=_required(arguments, "new_str", name),
+            rationale=_required(arguments, "rationale", name),
         )
     raise ToolError(f"unknown tool: {name}")
 
@@ -123,7 +142,7 @@ class FakeRunner:
         return AgentResult(
             diagnosis=self.diagnosis,
             edits=list(self.edits),
-            elements=list(recorder._elements),
+            elements=recorder.elements,
         )
 
 
@@ -192,7 +211,7 @@ class ClaudeRunner:
         return AgentResult(
             diagnosis=diagnosis,
             edits=list(tool_ctx.edits),
-            elements=list(recorder._elements),
+            elements=recorder.elements,
         )
 
     def _final_diagnosis(self, client, messages: list[dict], recorder) -> AgentDiagnosis:

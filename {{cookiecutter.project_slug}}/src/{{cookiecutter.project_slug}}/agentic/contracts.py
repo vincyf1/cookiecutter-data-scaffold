@@ -83,7 +83,13 @@ class Trace(BaseModel):
     def to_json_array(self) -> str:
         """Serialize the elements as a bare JSON array.
 
-        This is the canonical artifact. Both sinks persist byte-identical
-        output, so an eval asserting on a trace does not care which ran.
+        This is the canonical artifact. Both sinks persist structurally
+        identical documents, so an eval asserting on a trace does not care
+        which ran. Not byte-identical: DuckDB re-serializes its JSON column
+        on SELECT, so comparisons go through json.loads().
+
+        exclude_none keeps unset optional fields out of the array entirely
+        rather than emitting them as nulls, so an element's shape reflects
+        what was actually recorded.
         """
         return json.dumps([e.model_dump(exclude_none=True) for e in self.elements])
