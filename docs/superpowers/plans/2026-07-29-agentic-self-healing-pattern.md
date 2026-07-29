@@ -3221,8 +3221,18 @@ def test_write_report_emits_json_and_markdown(tmp_path):
 
 def test_report_records_the_grader_model_for_cross_version_comparison():
     # Grader scores are not comparable across model versions; recording the
-    # model is what lets a reader tell that.
-    assert "model" in GradeReport.model_fields
+    # model is what lets a reader tell that. Assert the value round-trips,
+    # not merely that the field is declared.
+    report = _report()
+    written = json.loads(report.model_dump_json())
+    assert written["model"] == "test-model"
+    assert "test-model" in render_markdown(report)
+
+
+def test_render_markdown_marks_a_failed_criterion_as_fail():
+    report = _report()
+    report.verdicts[1].passed = False
+    assert "| patch_targets | 3 | fail |" in render_markdown(report)
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -3420,11 +3430,23 @@ def test_case_is_graded_and_reported(case, tmp_path):
     path = write_report(report)
 
     print(f"\ngrade report: {path}")
-    assert report.overall >= 0
-    assert {v.criterion for v in report.verdicts}
+    # These assert the grader produced a *usable* report, not that the agent
+    # scored well -- this tier reports, it does not gate on quality.
+    assert 0 <= report.overall <= 5
+    assert report.model == GRADER_MODEL
+    graded = {v.criterion for v in report.verdicts}
+    assert set(case.score["required"]) <= graded, (
+        f"grader skipped required criteria: {set(case.score['required']) - graded}"
+    )
+    assert path.is_file() and path.with_suffix(".md").is_file()
 ```
 
-The assertion is deliberately weak. The graded tier reports; it does not gate.
+Add `GRADER_MODEL` to the imports at the top of the `from evals.grader import ...` line in this file.
+
+These assertions can fail: a grader that ignores a required criterion, returns
+an out-of-range score, or writes no report fails the test. What they do *not*
+do is gate on the agent's score — that is what keeps this tier reporting
+rather than blocking.
 
 - [ ] **Step 5: Add a reports directory placeholder**
 
