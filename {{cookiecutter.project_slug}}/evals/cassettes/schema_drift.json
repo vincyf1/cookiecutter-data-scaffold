@@ -1,0 +1,30 @@
+{
+  "tool_calls": [
+    {"name": "read_task_log", "input": {"task_id": "load", "tail_lines": 50}},
+    {"name": "read_repo_file", "input": {"path": "src/pkg/batch/dags/example_dag.py"}},
+    {"name": "read_repo_file", "input": {"path": "src/pkg/lakehouse/create_tables.sql"}},
+    {
+      "name": "propose_patch",
+      "input": {
+        "path": "src/pkg/batch/dags/example_dag.py",
+        "old_str": "customer_name",
+        "new_str": "name",
+        "rationale": "The events table declares a `name` column; extract() emits `customer_name`."
+      }
+    }
+  ],
+  "diagnosis": {
+    "root_cause": "extract() emits a record keyed customer_name, but the events table declared in create_tables.sql has a name column. The producer renamed the field without updating the schema.",
+    "offending_field": "customer_name",
+    "confidence": "high",
+    "patch_summary": "rename customer_name to name in extract()"
+  },
+  "edits": [
+    {
+      "path": "src/pkg/batch/dags/example_dag.py",
+      "old_str": "customer_name",
+      "new_str": "name",
+      "rationale": "The events table declares a `name` column; extract() emits `customer_name`."
+    }
+  ]
+}

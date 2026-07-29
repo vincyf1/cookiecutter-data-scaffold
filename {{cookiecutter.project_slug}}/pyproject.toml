@@ -21,6 +21,7 @@ dependencies = [
 {%- if cookiecutter.include_agentic %}
     "pydantic>=2.7",
     "anthropic>=0.40",
+    "pyyaml>=6.0",
 {%- endif %}
 ]
 
@@ -41,3 +42,13 @@ packages = ["src/{{ cookiecutter.project_slug }}"]
 target-version = "py312"
 line-length = 100
 src = ["src"]
+{%- if cookiecutter.include_agentic %}
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "evals"]
+markers = [
+    "live: hits the real Anthropic API; deselect with -m \"not live\". Skips without ANTHROPIC_API_KEY",
+    "graded: runs the LLM grader over a live run; deselect with -m \"not graded\". Skips without ANTHROPIC_API_KEY",
+]
+addopts = "-m 'not live and not graded'"
+{%- endif %}

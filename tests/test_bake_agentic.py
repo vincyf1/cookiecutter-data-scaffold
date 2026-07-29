@@ -154,3 +154,31 @@ def test_anthropic_dependency_tracks_the_flag(cookies):
     off = bake_with(cookies, include_agentic=False, include_batch=True)
     assert "anthropic" in (on.project_path / "pyproject.toml").read_text()
     assert "anthropic" not in (off.project_path / "pyproject.toml").read_text()
+
+
+def test_evals_present_when_enabled(cookies):
+    result = bake_with(cookies, include_agentic=True, include_batch=True)
+    evals = result.project_path / "evals"
+    assert (evals / "__init__.py").is_file()
+    assert (evals / "harness.py").is_file()
+    assert (evals / "replay.py").is_file()
+    assert (evals / "conftest.py").is_file()
+    assert (evals / "test_cases.py").is_file()
+    assert (evals / "cases" / "schema_drift.yaml").is_file()
+    assert (evals / "cassettes" / "schema_drift.json").is_file()
+
+
+def test_evals_absent_when_disabled(cookies):
+    result = bake_with(cookies, include_agentic=False, include_batch=True)
+    assert not (result.project_path / "evals").exists()
+
+
+def test_pyproject_testpaths_track_the_flag(cookies):
+    on = bake_with(cookies, include_agentic=True, include_batch=True)
+    off = bake_with(cookies, include_agentic=False, include_batch=True)
+    on_text = (on.project_path / "pyproject.toml").read_text()
+    off_text = (off.project_path / "pyproject.toml").read_text()
+    assert "evals" in on_text
+    assert "testpaths" in on_text
+    assert "testpaths" not in off_text
+    assert "evals" not in off_text

@@ -1,0 +1,15 @@
+id: schema_drift
+failure_mode: schema_drift
+expect:
+  # Order-sensitive: this is what proves the agent read the log before
+  # proposing a patch, rather than pattern-matching the exception name.
+  tools_called: [read_task_log, read_repo_file, read_repo_file, propose_patch]
+  diagnosis_mentions: [customer_name, name]
+  patch_targets: src/pkg/batch/dags/example_dag.py
+  min_confidence: medium
+score:
+  # required gates the eval; advisory reports only. patch_targets is
+  # objectively checkable. diagnosis_mentions is keyword matching on prose:
+  # useful signal, poor gate.
+  required: [tools_called, patch_targets]
+  advisory: [diagnosis_mentions, min_confidence]
