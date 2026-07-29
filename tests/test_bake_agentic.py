@@ -58,6 +58,40 @@ def test_agentic_module_absent_when_disabled(cookies):
     assert not (result.project_path / "tests" / "test_agentic_contracts.py").exists()
 
 
+def test_agentic_tracing_files_present_when_enabled(cookies):
+    result = bake_with(cookies, include_agentic=True, include_batch=True)
+    slug = result.context["project_slug"]
+    agentic = result.project_path / "src" / slug / "agentic"
+    assert (agentic / "tracing.py").is_file()
+    assert (agentic / "create_traces_table.sql").is_file()
+    assert (result.project_path / "tests" / "test_agentic_tracing.py").is_file()
+
+
+def test_agentic_tracing_files_absent_when_disabled(cookies):
+    result = bake_with(cookies, include_agentic=False, include_batch=True)
+    slug = result.context["project_slug"]
+    agentic = result.project_path / "src" / slug / "agentic"
+    assert not (agentic / "tracing.py").exists()
+    assert not (agentic / "create_traces_table.sql").exists()
+    assert not (result.project_path / "tests" / "test_agentic_tracing.py").exists()
+
+
+def test_create_traces_table_sql_ships_unused_without_lakehouse(cookies):
+    # create_traces_table.sql is not gated on include_lakehouse -- only the
+    # DuckDBSink branch inside tracing.py is. So with include_agentic=True
+    # and include_lakehouse=False the DDL file still ships even though
+    # nothing in the generated project reads it. This documents that
+    # current behavior; see task-3-report.md for the "is this right?"
+    # discussion, which is out of this task's scope to resolve.
+    result = bake_with(
+        cookies, include_agentic=True, include_batch=True, include_lakehouse=False
+    )
+    slug = result.context["project_slug"]
+    assert (
+        result.project_path / "src" / slug / "agentic" / "create_traces_table.sql"
+    ).is_file()
+
+
 def test_pydantic_dependency_tracks_the_flag(cookies):
     on = bake_with(cookies, include_agentic=True, include_batch=True)
     off = bake_with(cookies, include_agentic=False, include_batch=True)
