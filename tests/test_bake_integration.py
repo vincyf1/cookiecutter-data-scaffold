@@ -241,3 +241,13 @@ def test_docker_compose_is_valid_yaml_for_all_batch_streaming_combinations(
     assert isinstance(compose["services"], dict)
     assert ("airflow-standalone" in compose["services"]) == include_batch
     assert ("kafka" in compose["services"]) == include_streaming
+
+
+def test_agentic_bake_lints_clean(cookies):
+    result = bake_with(cookies, include_agentic=True, include_batch=True)
+    assert result.exit_code == 0
+    # Pinned ruff, not a bare `uvx ruff` -- see RUFF_VERSION's docstring in
+    # conftest.py: an unpinned invocation resolves to whatever ruff released
+    # most recently, so a new default rule turns this red with no change on
+    # our side.
+    lint_project(result.project_path)

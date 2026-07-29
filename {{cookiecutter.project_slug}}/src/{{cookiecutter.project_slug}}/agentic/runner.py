@@ -196,7 +196,21 @@ class ClaudeRunner:
         )
 
     def _final_diagnosis(self, client, messages: list[dict], recorder) -> AgentDiagnosis:
-        """One schema-constrained turn, so parsing cannot fail."""
+        """One schema-constrained turn, so parsing cannot fail.
+
+        This call already passes its own `output_config` (the json_schema
+        format), and _model_kwargs(model) returns {"output_config": {...}}
+        for Sonnet/Opus -- splatting both would collide on the
+        `output_config` keyword. Mirror evals/grader.py's ClaudeGrader: pop
+        `output_config` out of the tier kwargs and merge it into the schema's
+        output_config, rather than dropping the tier tuning altogether.
+        """
+        model_kwargs = _model_kwargs(self.model)
+        extra_output_config = model_kwargs.pop("output_config", {})
+        output_config = {
+            "format": {"type": "json_schema", "schema": DIAGNOSIS_SCHEMA},
+            **extra_output_config,
+        }
         with recorder.element("llm_turn", "diagnosis") as box:
             response = client.messages.create(
                 model=self.model,
@@ -209,7 +223,8 @@ class ClaudeRunner:
                         "content": "Return your final diagnosis in the required schema.",
                     }
                 ],
-                output_config={"format": {"type": "json_schema", "schema": DIAGNOSIS_SCHEMA}},
+                output_config=output_config,
+                **model_kwargs,
             )
             box["input_tokens"] = response.usage.input_tokens
             box["output_tokens"] = response.usage.output_tokens

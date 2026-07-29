@@ -48,6 +48,7 @@ PATTERNS = [
             f"src/{SLUG}/lakehouse",
             "tests/test_lakehouse_writer.py",
             "transformation/models/staging/sources.yml",
+            f"src/{SLUG}/agentic/create_traces_table.sql",
         ],
         "gated": [
             "docker-compose.yml",
@@ -58,6 +59,7 @@ PATTERNS = [
             "tests/test_streaming_sinks.py",
             f"src/{SLUG}/agentic/tracing.py",
             "tests/test_agentic_tracing.py",
+            "README.md",
             "transformation/dbt_project.yml",
             "transformation/models/staging/stg_events.sql",
             "transformation/profiles.yml",
@@ -93,6 +95,9 @@ PATTERNS = [
             "pyproject.toml",
             f"src/{SLUG}/batch/dags/example_dag.py",
             "tests/test_batch_dag.py",
+            "docker-compose.yml",
+            ".github/workflows/ci.yml",
+            "README.md",
         ],
     },
 ]

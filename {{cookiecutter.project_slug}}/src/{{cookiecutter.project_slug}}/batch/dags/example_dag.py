@@ -10,7 +10,7 @@ from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import heal_on_fai
 {%- endif %}
 
 # Off by default: the shipped demo behaves exactly as it did before the
-# agentic Pattern existed. Set failure_mode=schema_drift to trigger the
+# self-healing loop existed. Set failure_mode=schema_drift to trigger the
 # healing task.
 FAILURE_MODES = ["none", "schema_drift"]
 

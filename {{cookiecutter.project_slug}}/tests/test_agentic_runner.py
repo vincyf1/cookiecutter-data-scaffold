@@ -220,3 +220,48 @@ def test_claude_runner_carries_the_final_assistant_turn_into_the_diagnosis_call(
     roles = [m["role"] for m in diagnosis_messages]
     assert roles == ["user", "assistant", "user"]
     assert diagnosis_messages[1]["content"] == [conclusion]
+
+
+def test_final_diagnosis_does_not_collide_on_output_config_for_a_non_haiku_model(
+    failure_ctx,
+):
+    # claude-opus-5/claude-sonnet-5 get output_config={"effort": ...} back
+    # from _model_kwargs, which would collide with the explicit
+    # output_config= _final_diagnosis already passes for the json_schema
+    # format -- splatting both in the same call raises `TypeError: got
+    # multiple values for keyword argument 'output_config'`. The default
+    # claude-haiku-4-5 model never exercises this path (it gets
+    # temperature=0 instead), so a test using only the default would not
+    # catch a regression here.
+    diagnosis_payload = {
+        "root_cause": "field renamed",
+        "offending_field": "customer_name",
+        "confidence": "high",
+        "patch_summary": "rename to name",
+    }
+    diagnosis_block = _FakeTextBlock(text=json.dumps(diagnosis_payload))
+
+    fake_client = _FakeClient(
+        responses=[
+            _FakeResponse(content=[diagnosis_block], stop_reason="end_turn"),
+            _FakeResponse(content=[diagnosis_block], stop_reason="end_turn"),
+        ]
+    )
+
+    runner = ClaudeRunner(model="claude-opus-5")
+    runner._client = lambda: fake_client
+
+    recorder = TraceRecorder(
+        dag_id=failure_ctx.dag_id,
+        dag_run_id=failure_ctx.dag_run_id,
+        task_id=failure_ctx.task_id,
+        try_number=failure_ctx.try_number,
+    )
+
+    result = runner.run(failure_ctx, recorder)
+
+    assert result.diagnosis.offending_field == "customer_name"
+    kwargs = fake_client.messages.calls[-1]
+    assert kwargs["output_config"]["format"]["type"] == "json_schema"
+    assert kwargs["output_config"]["effort"] == "medium"
+    assert "temperature" not in kwargs

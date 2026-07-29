@@ -12,7 +12,10 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       PYTHONPATH: /opt/airflow/project/src
-      _PIP_ADDITIONAL_REQUIREMENTS: "pyarrow>=17.0{% if cookiecutter.include_lakehouse %} duckdb>=1.0{% endif %}"
+{%- if cookiecutter.include_agentic %}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+{%- endif %}
+      _PIP_ADDITIONAL_REQUIREMENTS: "pyarrow>=17.0{% if cookiecutter.include_lakehouse %} duckdb>=1.0{% endif %}{% if cookiecutter.include_agentic %} anthropic>=0.40 pydantic>=2.7{% endif %}"
     volumes:
       - ./src:/opt/airflow/project/src
       - ./src/{{ cookiecutter.project_slug }}/batch/dags:/opt/airflow/dags

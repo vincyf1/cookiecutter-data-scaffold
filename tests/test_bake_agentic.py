@@ -76,20 +76,20 @@ def test_agentic_tracing_files_absent_when_disabled(cookies):
     assert not (result.project_path / "tests" / "test_agentic_tracing.py").exists()
 
 
-def test_create_traces_table_sql_ships_unused_without_lakehouse(cookies):
-    # create_traces_table.sql is not gated on include_lakehouse -- only the
-    # DuckDBSink branch inside tracing.py is. So with include_agentic=True
-    # and include_lakehouse=False the DDL file still ships even though
-    # nothing in the generated project reads it. This documents that
-    # current behavior; see task-3-report.md for the "is this right?"
-    # discussion, which is out of this task's scope to resolve.
+def test_create_traces_table_sql_is_removed_without_lakehouse(cookies):
+    # create_traces_table.sql is read only by DuckDBSink, which never
+    # renders when include_lakehouse=False. Shipping it anyway would be
+    # unused code left behind -- the exact thing the README promises this
+    # template never does. It is declared on include_lakehouse's "remove"
+    # list (not include_agentic's) in hooks/post_gen_project.py, so it is
+    # gone regardless of which Pattern happens to be processed first.
     result = bake_with(
         cookies, include_agentic=True, include_batch=True, include_lakehouse=False
     )
     slug = result.context["project_slug"]
-    assert (
+    assert not (
         result.project_path / "src" / slug / "agentic" / "create_traces_table.sql"
-    ).is_file()
+    ).exists()
 
 
 def test_agentic_tools_present_when_enabled(cookies):
@@ -182,3 +182,64 @@ def test_pyproject_testpaths_track_the_flag(cookies):
     assert "testpaths" in on_text
     assert "testpaths" not in off_text
     assert "evals" not in off_text
+
+
+def test_compose_mounts_the_agentic_dags_when_enabled(cookies):
+    result = bake_with(cookies, include_agentic=True, include_batch=True)
+    compose = (result.project_path / "docker-compose.yml").read_text()
+    assert "ANTHROPIC_API_KEY" in compose
+
+
+def test_compose_omits_the_api_key_when_agentic_disabled(cookies):
+    result = bake_with(cookies, include_agentic=False, include_batch=True)
+    compose = (result.project_path / "docker-compose.yml").read_text()
+    assert "ANTHROPIC_API_KEY" not in compose
+
+
+def test_ci_runs_evals_deterministically_when_enabled(cookies):
+    result = bake_with(cookies, include_agentic=True, include_batch=True)
+    ci = (result.project_path / ".github" / "workflows" / "ci.yml").read_text()
+    assert "not live and not graded" in ci
+
+
+def test_generated_readme_documents_the_agentic_pattern(cookies):
+    result = bake_with(cookies, include_agentic=True, include_batch=True)
+    readme = (result.project_path / "README.md").read_text()
+    assert "failure_mode" in readme
+    assert "artifacts/" in readme
+
+
+@pytest.mark.slow
+def test_agentic_bake_generated_tests_pass(cookies):
+    result = bake_with(
+        cookies,
+        include_batch=True,
+        include_streaming=False,
+        include_lakehouse=True,
+        include_dbt=False,
+        include_agentic=True,
+    )
+    assert result.exit_code == 0
+
+    from conftest import run_cmd
+
+    run_cmd(result.project_path, "uv", "sync")
+    run_cmd(result.project_path, "uv", "run", "pytest", "-v")
+
+
+@pytest.mark.slow
+def test_agentic_without_lakehouse_generated_tests_pass(cookies):
+    result = bake_with(
+        cookies,
+        include_batch=True,
+        include_streaming=False,
+        include_lakehouse=False,
+        include_dbt=False,
+        include_agentic=True,
+    )
+    assert result.exit_code == 0
+
+    from conftest import run_cmd
+
+    run_cmd(result.project_path, "uv", "sync")
+    run_cmd(result.project_path, "uv", "run", "pytest", "-v")

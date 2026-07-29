@@ -34,6 +34,7 @@ Most data engineering templates force an early, exclusive choice: "batch project
   - **Streaming** — a continuous ingestion pipeline (consumer + sinks)
   - **Lakehouse** — a DuckDB-native storage/table layer that Batch and/or Streaming write into
   - **Transformation** — a dbt project for reshaping data already at rest
+  - **Agentic** — a self-healing loop: a failing Batch DAG triggers an AI agent that diagnoses from logs and proposes a patch for human review
 - **Clean generation, no leftovers** — disabling a Pattern removes its files entirely rather than leaving unused code behind, verified by a canonical Pattern manifest (`hooks/post_gen_project.py`) that's cross-checked against the template tree in CI-style tests.
 - **Modern tooling out of the box** — [`uv`](https://docs.astral.sh/uv/) for dependency management, `ruff` for linting, `pytest` for tests, `pre-commit` hooks, and pinned versions for dbt-duckdb, sqlfluff, and Airflow.
 - **Sensible defaults** — a working example DAG, consumer, and dbt staging model are generated so you have something runnable on day one, not just empty folders.
@@ -84,6 +85,9 @@ These are the variables you'll be prompted for (see [`cookiecutter.json`](cookie
 | `dbt_duckdb_version`  | `1.8`             | Pinned `dbt-duckdb` version                                |
 | `sqlfluff_version`    | `3.1.0`           | Pinned `sqlfluff` version                                  |
 | `airflow_version`     | `3.2.0`           | Pinned `apache-airflow` version                            |
+| `include_agentic`     | `true`            | Scaffold the agentic self-healing loop (requires `include_batch`) |
+| `agentic_model`       | `claude-haiku-4-5` | Model used for diagnosis                                 |
+| `agentic_grader_model` | `claude-haiku-4-5` | Model used by the eval grader                           |
 
 Generate non-interactively with specific flags via `--no-input` and `extra_context`:
 
@@ -102,6 +106,7 @@ Patterns are independent and combinable — enabling or disabling one never requ
 - **Streaming** scaffolds `src/<slug>/streaming/`, a consumer and sinks, and its tests.
 - **Lakehouse** scaffolds `src/<slug>/lakehouse/`, DuckDB table DDL, and a writer that Batch/Streaming sinks write through — it's a storage layer, not an ingestion mechanism.
 - **Transformation** scaffolds `transformation/`, a dbt project with a staging model, and defaults to its own local DuckDB target so it works even without Lakehouse enabled.
+- **Agentic** scaffolds `src/<slug>/agentic/`, a healing task wired into the Batch DAG with `trigger_rule=ALL_FAILED`, JSON-array run traces, and an `evals/` suite. It is the one Pattern with a dependency: it requires **Batch**, since there is no DAG to heal without one.
 
 ### Running the template's own test suite
 
