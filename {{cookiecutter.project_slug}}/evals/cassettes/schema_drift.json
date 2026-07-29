@@ -18,13 +18,5 @@
     "offending_field": "customer_name",
     "confidence": "high",
     "patch_summary": "rename customer_name to name in extract()"
-  },
-  "edits": [
-    {
-      "path": "src/pkg/batch/dags/example_dag.py",
-      "old_str": "customer_name",
-      "new_str": "name",
-      "rationale": "The events table declares a `name` column; extract() emits `customer_name`."
-    }
-  ]
+  }
 }
