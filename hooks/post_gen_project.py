@@ -84,6 +84,7 @@ PATTERNS = [
             "tests/test_agentic_contracts.py",
             "tests/test_agentic_tracing.py",
             "tests/test_agentic_tools.py",
+            "tests/test_agentic_runner.py",
         ],
         "gated": [
             "pyproject.toml",

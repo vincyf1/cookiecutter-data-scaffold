@@ -1,0 +1,213 @@
+"""The AgentRunner seam -- where all non-determinism is isolated.
+
+Above this boundary everything is ordinary Python. FakeRunner returns a
+fixture, ClaudeRunner calls the live API, and nothing downstream knows
+which one ran. That is what makes the default test suite deterministic:
+temperature=0 does not guarantee identical output, this seam does.
+"""
+
+import json
+from pathlib import Path
+from typing import Protocol
+
+from {{ cookiecutter.project_slug }}.agentic.contracts import (
+    AgentDiagnosis,
+    AgentResult,
+    FailureContext,
+    ProposedEdit,
+)
+from {{ cookiecutter.project_slug }}.agentic.tools import (
+    TOOL_SPECS,
+    ToolContext,
+    ToolError,
+    propose_patch,
+    read_repo_file,
+    read_task_log,
+)
+from {{ cookiecutter.project_slug }}.agentic.tracing import TraceRecorder, truncate
+
+MODEL = "{{ cookiecutter.agentic_model }}"
+MAX_ITERATIONS = 12
+MAX_TOKENS = 8000
+
+SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "diagnose.md").read_text()
+
+DIAGNOSIS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "root_cause": {"type": "string"},
+        "offending_field": {"type": ["string", "null"]},
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "patch_summary": {"type": "string"},
+    },
+    "required": ["root_cause", "offending_field", "confidence", "patch_summary"],
+    "additionalProperties": False,
+}
+
+# Request parameters are tier-dependent, so they cannot be interpolated
+# blindly from the cookiecutter variable. temperature is valid on Haiku 4.5
+# and returns 400 on claude-opus-5; output_config.effort is the reverse.
+# Unknown models get the intersection that is valid everywhere.
+_MODEL_PARAMS: dict[str, dict] = {
+    "claude-haiku-4-5": {"temperature": 0},
+    "claude-sonnet-5": {"output_config": {"effort": "medium"}},
+    "claude-opus-5": {"output_config": {"effort": "medium"}},
+}
+
+
+def _model_kwargs(model: str) -> dict:
+    return dict(_MODEL_PARAMS.get(model, {}))
+
+
+def dispatch_tool(tool_ctx: ToolContext, name: str, arguments: dict) -> str:
+    """Route one tool call. The allowlist is this dict and nothing else."""
+    if name == "read_task_log":
+        return read_task_log(
+            tool_ctx,
+            task_id=arguments["task_id"],
+            tail_lines=arguments.get("tail_lines", 200),
+        )
+    if name == "read_repo_file":
+        return read_repo_file(tool_ctx, path=arguments["path"])
+    if name == "propose_patch":
+        return propose_patch(
+            tool_ctx,
+            path=arguments["path"],
+            old_str=arguments["old_str"],
+            new_str=arguments["new_str"],
+            rationale=arguments["rationale"],
+        )
+    raise ToolError(f"unknown tool: {name}")
+
+
+def render_context(ctx: FailureContext) -> str:
+    return (
+        f"Task `{ctx.task_id}` in DAG `{ctx.dag_id}` (run `{ctx.dag_run_id}`, "
+        f"try {ctx.try_number}) failed.\n\n"
+        f"Exception: {ctx.exception_type}: {ctx.exception_message}\n\n"
+        "Read the task log and the relevant source, then propose a patch."
+    )
+
+
+class AgentRunner(Protocol):
+    def run(self, ctx: FailureContext, recorder: TraceRecorder) -> AgentResult: ...
+
+
+class FakeRunner:
+    """Replays a fixture. The default test tier runs entirely on this."""
+
+    def __init__(
+        self,
+        diagnosis: AgentDiagnosis,
+        edits: list[ProposedEdit],
+        tool_sequence: list[str],
+    ) -> None:
+        self.diagnosis = diagnosis
+        self.edits = edits
+        self.tool_sequence = tool_sequence
+
+    def run(self, ctx: FailureContext, recorder: TraceRecorder) -> AgentResult:
+        for name in self.tool_sequence:
+            with recorder.element("tool_call", name) as box:
+                box["output_summary"] = {"replayed": True}
+        recorder.add(
+            "result",
+            "diagnosis",
+            output_summary={"confidence": self.diagnosis.confidence},
+        )
+        return AgentResult(
+            diagnosis=self.diagnosis,
+            edits=list(self.edits),
+            elements=list(recorder._elements),
+        )
+
+
+class ClaudeRunner:
+    """Drives the real tool loop against the Anthropic API."""
+
+    def __init__(self, model: str = MODEL, max_iterations: int = MAX_ITERATIONS) -> None:
+        self.model = model
+        self.max_iterations = max_iterations
+
+    def _client(self):
+        import anthropic
+
+        return anthropic.Anthropic()
+
+    def run(self, ctx: FailureContext, recorder: TraceRecorder) -> AgentResult:
+        client = self._client()
+        tool_ctx = ToolContext(
+            project_root=Path(ctx.project_root), log_path=Path(ctx.log_path)
+        )
+        messages: list[dict] = [{"role": "user", "content": render_context(ctx)}]
+
+        for _ in range(self.max_iterations):
+            with recorder.element("llm_turn", f"turn_{len(messages)}") as box:
+                response = client.messages.create(
+                    model=self.model,
+                    max_tokens=MAX_TOKENS,
+                    system=SYSTEM_PROMPT,
+                    tools=TOOL_SPECS,
+                    messages=messages,
+                    **_model_kwargs(self.model),
+                )
+                box["input_tokens"] = response.usage.input_tokens
+                box["output_tokens"] = response.usage.output_tokens
+
+            if response.stop_reason != "tool_use":
+                break
+
+            messages.append({"role": "assistant", "content": response.content})
+            results = []
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                with recorder.element(
+                    "tool_call", block.name, input_summary=dict(block.input)
+                ) as box:
+                    try:
+                        output = dispatch_tool(tool_ctx, block.name, dict(block.input))
+                        is_error = False
+                    except ToolError as exc:
+                        output = str(exc)
+                        is_error = True
+                    box["output_summary"] = {"text": truncate(output, 500)}
+                results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": truncate(output),
+                        "is_error": is_error,
+                    }
+                )
+            messages.append({"role": "user", "content": results})
+
+        diagnosis = self._final_diagnosis(client, messages, recorder)
+        return AgentResult(
+            diagnosis=diagnosis,
+            edits=list(tool_ctx.edits),
+            elements=list(recorder._elements),
+        )
+
+    def _final_diagnosis(self, client, messages: list[dict], recorder) -> AgentDiagnosis:
+        """One schema-constrained turn, so parsing cannot fail."""
+        with recorder.element("llm_turn", "diagnosis") as box:
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                system=SYSTEM_PROMPT,
+                messages=messages
+                + [
+                    {
+                        "role": "user",
+                        "content": "Return your final diagnosis in the required schema.",
+                    }
+                ],
+                output_config={"format": {"type": "json_schema", "schema": DIAGNOSIS_SCHEMA}},
+            )
+            box["input_tokens"] = response.usage.input_tokens
+            box["output_tokens"] = response.usage.output_tokens
+        text = next(b.text for b in response.content if b.type == "text")
+        parsed = AgentDiagnosis.model_validate(json.loads(text))
+        recorder.add("result", "diagnosis", output_summary={"confidence": parsed.confidence})
+        return parsed
