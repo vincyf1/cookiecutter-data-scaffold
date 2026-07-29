@@ -56,6 +56,8 @@ PATTERNS = [
             f"src/{SLUG}/batch/sinks.py",
             f"src/{SLUG}/streaming/sinks.py",
             "tests/test_streaming_sinks.py",
+            f"src/{SLUG}/agentic/tracing.py",
+            "tests/test_agentic_tracing.py",
             "transformation/dbt_project.yml",
             "transformation/models/staging/stg_events.sql",
             "transformation/profiles.yml",
@@ -80,6 +82,7 @@ PATTERNS = [
         "remove": [
             f"src/{SLUG}/agentic",
             "tests/test_agentic_contracts.py",
+            "tests/test_agentic_tracing.py",
         ],
         "gated": [
             "pyproject.toml",
