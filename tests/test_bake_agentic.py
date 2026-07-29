@@ -11,9 +11,18 @@ def test_agentic_flag_is_in_context(cookies):
     assert result.context["agentic_grader_model"] == "claude-haiku-4-5"
 
 
-def test_agentic_without_batch_is_rejected(cookies):
+def test_agentic_without_batch_is_rejected(cookies, capfd):
     result = bake_with(cookies, include_agentic=True, include_batch=False)
     assert result.exit_code != 0
+    assert result.exception is not None
+    # pre_gen_project.py's guard runs in a subprocess and prints straight to
+    # the inherited fd 1 (cookiecutter's FailedHookException carries no
+    # message of its own beyond "exit status: 1"), so capfd -- not capsys --
+    # is what sees it. Asserting on this text is what distinguishes "the
+    # include_agentic-requires-include_batch guard fired" from "the bake
+    # failed for some unrelated reason".
+    out, _ = capfd.readouterr()
+    assert "include_agentic requires include_batch" in out
 
 
 def test_agentic_with_batch_bakes_cleanly(cookies):
