@@ -1,5 +1,6 @@
 import pytest
 
+from {{ cookiecutter.project_slug }}.agentic.contracts import ProposedEdit
 from {{ cookiecutter.project_slug }}.agentic.tools import (
     TOOL_SPECS,
     ToolContext,
@@ -84,6 +85,57 @@ def test_render_diff_produces_a_unified_diff(ctx):
 
 def test_render_diff_is_empty_with_no_edits(ctx):
     assert render_diff(ctx) == ""
+
+
+def test_render_diff_applies_two_non_overlapping_edits_to_the_same_file(ctx):
+    # Regression: this legitimate case -- two edits to the same file that
+    # don't touch each other's text -- must keep working. Only edits that
+    # actually overlap should be rejected.
+    propose_patch(ctx, "src/dag.py", "customer_name", "name", "matches DDL column")
+    propose_patch(ctx, "src/dag.py", '"id": 1', '"id": 2', "bump the id")
+
+    diff = render_diff(ctx)
+
+    assert '+record = {"id": 2, "name": "x"}' in diff
+
+
+def test_propose_patch_rejects_an_edit_that_overlaps_a_prior_staged_edit(ctx):
+    # Regression for silent edit loss: propose_patch must validate against
+    # the content as it would look *after* edits already staged for this
+    # path, not the on-disk original. Here "aXb" -> "aYb" is staged first;
+    # "Xb" no longer occurs in the accumulated content, so the second stage
+    # attempt must be rejected up front rather than silently dropped later
+    # by render_diff.
+    (ctx.project_root / "src" / "overlap.py").write_text("aXb\n")
+    propose_patch(ctx, "src/overlap.py", "aXb", "aYb", "first edit")
+
+    with pytest.raises(ToolError, match="0 times"):
+        propose_patch(ctx, "src/overlap.py", "Xb", "Zb", "conflicting second edit")
+
+
+def test_render_diff_raises_if_a_staged_edit_cannot_be_applied(ctx):
+    # An edit appended directly to ctx.edits bypasses propose_patch's
+    # validation entirely -- exactly the door Task 8 uses when it assigns
+    # tool_ctx.edits = list(result.edits). render_diff must fail loudly
+    # rather than silently produce a diff missing this edit.
+    ctx.edits.append(
+        ProposedEdit(
+            path="src/dag.py",
+            old_str="nonexistent text",
+            new_str="x",
+            rationale="bogus",
+        )
+    )
+    with pytest.raises(ToolError, match="src/dag.py"):
+        render_diff(ctx)
+
+
+def test_render_diff_rejects_a_staged_edit_for_a_missing_file(ctx):
+    ctx.edits.append(
+        ProposedEdit(path="src/gone.py", old_str="a", new_str="b", rationale="bogus")
+    )
+    with pytest.raises(ToolError, match="no such file"):
+        render_diff(ctx)
 
 
 def test_tool_specs_expose_exactly_three_tools():

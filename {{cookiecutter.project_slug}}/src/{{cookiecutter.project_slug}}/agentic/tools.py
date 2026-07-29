@@ -58,14 +58,49 @@ def read_repo_file(ctx: ToolContext, path: str) -> str:
     return target.read_text(errors="replace")
 
 
+def _apply_staged_edits(content: str, edits: list[ProposedEdit], path: str) -> str:
+    """Apply edits in order, each against the content as patched so far.
+
+    Shared by propose_patch (to validate a new edit against what's already
+    staged for the same path) and render_diff (to actually produce the
+    patched text). Keeping the derivation in one place is what prevents the
+    two views from drifting apart: propose_patch validates a candidate edit
+    against exactly the content render_diff will apply it to.
+
+    Raises ToolError, naming the path and edit index, if an edit's old_str
+    is not unambiguously present in the content as of its turn. In normal
+    operation propose_patch's own check makes this unreachable; it exists so
+    a ProposedEdit appended directly to ctx.edits (bypassing propose_patch)
+    fails loudly instead of being silently dropped.
+    """
+    result = content
+    for index, edit in enumerate(edits):
+        occurrences = result.count(edit.old_str)
+        if occurrences != 1:
+            raise ToolError(
+                f"staged edit {index} for {path} could not be applied: old_str "
+                f"occurs {occurrences} times in the content as patched so far"
+            )
+        result = result.replace(edit.old_str, edit.new_str, 1)
+    return result
+
+
 def propose_patch(
     ctx: ToolContext, path: str, old_str: str, new_str: str, rationale: str
 ) -> str:
-    """Stage a single unambiguous replacement. Does not write to disk."""
+    """Stage a single unambiguous replacement. Does not write to disk.
+
+    Validated against the content as it would look after edits already
+    staged for this same path -- not the on-disk original -- so a second
+    edit that overlaps a first one is rejected here rather than silently
+    dropped later by render_diff.
+    """
     target = ctx.resolve(path)
     if not target.is_file():
         raise ToolError(f"no such file: {path}")
-    occurrences = target.read_text().count(old_str)
+    prior_edits = [edit for edit in ctx.edits if edit.path == path]
+    accumulated = _apply_staged_edits(target.read_text(), prior_edits, path)
+    occurrences = accumulated.count(old_str)
     if occurrences != 1:
         raise ToolError(
             f"old_str occurs {occurrences} times in {path}; it must occur exactly once. "
@@ -85,10 +120,11 @@ def render_diff(ctx: ToolContext) -> str:
         by_path.setdefault(edit.path, []).append(edit)
 
     for path, edits in by_path.items():
-        original = ctx.resolve(path).read_text()
-        patched = original
-        for edit in edits:
-            patched = patched.replace(edit.old_str, edit.new_str, 1)
+        try:
+            original = ctx.resolve(path).read_text()
+        except FileNotFoundError as exc:
+            raise ToolError(f"no such file: {path}") from exc
+        patched = _apply_staged_edits(original, edits, path)
         diff = difflib.unified_diff(
             original.splitlines(keepends=True),
             patched.splitlines(keepends=True),
