@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Protocol
 
 from {{ cookiecutter.project_slug }}.agentic.contracts import AgentResult
-from {{ cookiecutter.project_slug }}.agentic.tools import ToolContext, render_diff
+from {{ cookiecutter.project_slug }}.agentic.tools import ToolContext, ToolError, render_diff
 
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
@@ -32,7 +32,7 @@ def _title(result: AgentResult) -> str:
     return f"fix: {result.diagnosis.patch_summary}"
 
 
-def _body(trace_id: str, result: AgentResult) -> str:
+def _body(trace_id: str, result: AgentResult, render_error: str | None = None) -> str:
     lines = [
         "Proposed automatically by the agentic healing DAG. **Review before merging.**",
         "",
@@ -44,6 +44,15 @@ def _body(trace_id: str, result: AgentResult) -> str:
     lines += ["", "**Edits:**"]
     for edit in result.edits:
         lines.append(f"- `{edit.path}` — {edit.rationale}")
+    if render_error:
+        lines += [
+            "",
+            "**Patch could not be rendered.** The agent staged edit(s) above, but "
+            "turning them into a diff failed, so no `.patch` file was produced. "
+            "This is different from the agent choosing not to edit anything -- "
+            "something changed on disk between staging and publishing.",
+            f"**Render error:** {render_error}",
+        ]
     lines += ["", f"Trace id: `{trace_id}`"]
     return "\n".join(lines)
 
@@ -65,14 +74,28 @@ class LocalPatchPublisher:
     ) -> PublishedPatch:
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         title = _title(result)
-        body = _body(trace_id, result)
 
+        # render_diff raises ToolError if a staged edit can no longer be
+        # applied (e.g. its file was deleted or moved after staging). That
+        # must not cost us the audit record -- a render failure is exactly
+        # the moment a human most needs to know the agent ran and what it
+        # attempted, so we degrade to patch_path=None and carry the error
+        # into the metadata/body rather than letting the exception erase
+        # the whole artifact. This is deliberately distinguishable from the
+        # "no edits" case: render_error is set here, and absent there.
         patch_path: str | None = None
-        diff = render_diff(tool_ctx)
-        if diff:
-            target = self.artifacts_dir / f"{trace_id}.patch"
-            target.write_text(diff)
-            patch_path = str(target)
+        render_error: str | None = None
+        try:
+            diff = render_diff(tool_ctx)
+        except ToolError as exc:
+            render_error = str(exc)
+        else:
+            if diff:
+                target = self.artifacts_dir / f"{trace_id}.patch"
+                target.write_text(diff)
+                patch_path = str(target)
+
+        body = _body(trace_id, result, render_error)
 
         metadata = {
             "trace_id": trace_id,
@@ -82,6 +105,7 @@ class LocalPatchPublisher:
             "root_cause": result.diagnosis.root_cause,
             "offending_field": result.diagnosis.offending_field,
             "patch_path": patch_path,
+            "render_error": render_error,
             "edits": [e.model_dump() for e in result.edits],
         }
         metadata_path = self.artifacts_dir / f"{trace_id}.json"
@@ -101,6 +125,21 @@ class GitHubPublisher:
     Enable by setting AGENTIC_GITHUB_REPO. Requires push credentials and an
     authenticated `gh` in the Airflow worker -- which is exactly why it is
     not the default.
+
+    The heal branch is cut from `origin/<base_branch>` (after an explicit
+    fetch), not from whatever the worker's checkout currently has at HEAD,
+    so the PR's base/diff relationship is well-defined regardless of the
+    worker's prior state.
+
+    Recovery: if any step after the branch is created fails, the worker's
+    checkout is restored to whatever branch it was on before `publish` ran
+    and the newly created heal branch is deleted, so retrying the same
+    `trace_id` is possible rather than permanently blocked on "branch
+    already exists". This is *not* a full transactional rollback: if the
+    branch was already pushed to `origin` before a later step failed (e.g.
+    `push` succeeded but `gh pr create` did not), the remote branch -- and
+    possibly an opened PR from an earlier partial run -- can outlive this
+    call and may need manual cleanup.
     """
 
     def __init__(self, repo: str, base_branch: str = "main") -> None:
@@ -122,24 +161,34 @@ class GitHubPublisher:
         def run(*args: str) -> subprocess.CompletedProcess:
             return subprocess.run(args, cwd=root, check=True, capture_output=True)
 
-        run("git", "checkout", "-b", branch)
-        run("git", "apply", local.patch_path)
-        run("git", "commit", "-am", local.title)
-        run("git", "push", "-u", "origin", branch)
-        created = subprocess.run(
-            [
+        def run_text(*args: str) -> subprocess.CompletedProcess:
+            return subprocess.run(args, cwd=root, check=True, capture_output=True, text=True)
+
+        original_branch = run_text(
+            "git", "rev-parse", "--abbrev-ref", "HEAD"
+        ).stdout.strip()
+
+        run("git", "fetch", "origin", self.base_branch)
+        run("git", "checkout", "-b", branch, f"origin/{self.base_branch}")
+        try:
+            run("git", "apply", local.patch_path)
+            run("git", "commit", "-am", local.title)
+            run("git", "push", "-u", "origin", branch)
+            created = run_text(
                 "gh", "pr", "create",
                 "--repo", self.repo,
                 "--base", self.base_branch,
                 "--head", branch,
                 "--title", local.title,
                 "--body", local.body,
-            ],
-            cwd=root,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+            )
+        except Exception:
+            subprocess.run(
+                ["git", "checkout", original_branch], cwd=root, capture_output=True
+            )
+            subprocess.run(["git", "branch", "-D", branch], cwd=root, capture_output=True)
+            raise
+
         local.url = created.stdout.strip()
         return local
 

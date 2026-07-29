@@ -79,6 +79,28 @@ def test_local_publisher_handles_a_run_with_no_edits(tmp_path, result):
     assert (tmp_path / "trace2.json").is_file()
 
 
+def test_local_publisher_records_a_render_failure_without_losing_the_audit_trail(
+    tmp_path, tool_ctx, result
+):
+    # The staged edit's target file disappears between staging and publish
+    # (e.g. moved/deleted by a later step). render_diff raises ToolError in
+    # this case; the publisher must still leave a reviewable record rather
+    # than losing the artifact entirely.
+    (tmp_path / "src" / "dag.py").unlink()
+
+    published = LocalPatchPublisher(tmp_path).publish("trace3", result, tool_ctx)
+
+    assert published.patch_path is None
+    assert not (tmp_path / "trace3.patch").exists()
+    assert (tmp_path / "trace3.json").is_file()
+
+    meta = json.loads((tmp_path / "trace3.json").read_text())
+    assert meta["patch_path"] is None
+    assert meta["render_error"]
+    assert "dag.py" in meta["render_error"]
+    assert meta["render_error"] in meta["body"]
+
+
 def test_default_publisher_is_local_without_configuration(monkeypatch):
     monkeypatch.delenv("AGENTIC_GITHUB_REPO", raising=False)
     assert isinstance(default_publisher(), LocalPatchPublisher)
