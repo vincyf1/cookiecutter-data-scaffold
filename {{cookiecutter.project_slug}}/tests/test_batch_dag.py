@@ -30,3 +30,19 @@ def test_failure_mode_rejects_a_value_outside_the_enum():
     param = dag.params.get_param("failure_mode")
     with pytest.raises(ParamValidationError):
         param.resolve(value="bogus")
+{%- if cookiecutter.include_agentic %}
+
+
+def test_heal_task_is_wired_downstream_of_load():
+    dag = example_events_dag()
+    assert "heal_on_failure" in {task.task_id for task in dag.tasks}
+    heal = dag.get_task("heal_on_failure")
+    assert "load" in heal.upstream_task_ids
+
+
+def test_heal_task_runs_only_when_load_fails():
+    from airflow.utils.trigger_rule import TriggerRule
+
+    dag = example_events_dag()
+    assert dag.get_task("heal_on_failure").trigger_rule == TriggerRule.ALL_FAILED
+{%- endif %}

@@ -86,9 +86,12 @@ PATTERNS = [
             "tests/test_agentic_tools.py",
             "tests/test_agentic_runner.py",
             "tests/test_agentic_publisher.py",
+            "tests/test_agentic_healing.py",
         ],
         "gated": [
             "pyproject.toml",
+            f"src/{SLUG}/batch/dags/example_dag.py",
+            "tests/test_batch_dag.py",
         ],
     },
 ]

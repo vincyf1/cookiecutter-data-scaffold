@@ -3,6 +3,11 @@ from datetime import UTC, datetime
 from airflow.sdk import Param, dag, task
 
 from {{ cookiecutter.project_slug }}.batch.sinks import write_events
+{%- if cookiecutter.include_agentic %}
+from airflow.utils.trigger_rule import TriggerRule
+
+from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import heal_on_failure
+{%- endif %}
 
 # Off by default: the shipped demo behaves exactly as it did before the
 # agentic Pattern existed. Set failure_mode=schema_drift to trigger the
@@ -31,7 +36,12 @@ def example_events_dag():
     def load(records: list[dict]) -> None:
         write_events(records)
 
+{%- if cookiecutter.include_agentic %}
+    loaded = load(extract())
+    heal_on_failure.override(trigger_rule=TriggerRule.ALL_FAILED)() << loaded
+{%- else %}
     load(extract())
+{%- endif %}
 
 
 example_events_dag()
