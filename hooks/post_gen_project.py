@@ -77,8 +77,13 @@ PATTERNS = [
     {
         "flag_name": "include_agentic",
         "flag": {{ cookiecutter.include_agentic }},
-        "remove": [],
-        "gated": [],
+        "remove": [
+            f"src/{SLUG}/agentic",
+            "tests/test_agentic_contracts.py",
+        ],
+        "gated": [
+            "pyproject.toml",
+        ],
     },
 ]
 
