@@ -6,6 +6,9 @@
   "include_streaming": true,
   "include_lakehouse": true,
   "include_dbt": true,
+  "include_agentic": true,
+  "agentic_model": "claude-haiku-4-5",
+  "agentic_grader_model": "claude-haiku-4-5",
   "dbt_duckdb_version": "1.8",
   "sqlfluff_version": "3.1.0",
   "airflow_version": "3.2.0"

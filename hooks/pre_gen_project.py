@@ -11,3 +11,15 @@ if not VALID_SLUG_RE.match(PROJECT_SLUG):
         "digits, and underscores, and must not start with a digit."
     )
     sys.exit(1)
+
+INCLUDE_AGENTIC = {{ cookiecutter.include_agentic }}
+INCLUDE_BATCH = {{ cookiecutter.include_batch }}
+
+if INCLUDE_AGENTIC and not INCLUDE_BATCH:
+    print(
+        "ERROR: include_agentic requires include_batch.\n"
+        "The Agentic Pattern heals a failing batch DAG; with no DAG scaffolded "
+        "there is nothing for it to observe. Enable include_batch, or set "
+        "include_agentic=false."
+    )
+    sys.exit(1)

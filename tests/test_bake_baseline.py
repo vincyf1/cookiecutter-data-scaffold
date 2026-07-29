@@ -20,6 +20,7 @@ def test_all_patterns_off_removes_pattern_dirs(cookies):
         include_streaming=False,
         include_lakehouse=False,
         include_dbt=False,
+        include_agentic=False,
     )
     assert result.exit_code == 0
     project = result.project_path

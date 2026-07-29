@@ -15,6 +15,7 @@ DEFAULT_FLAGS = {
     "include_streaming": True,
     "include_lakehouse": True,
     "include_dbt": True,
+    "include_agentic": True,
 }
 
 

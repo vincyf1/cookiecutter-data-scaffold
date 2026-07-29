@@ -74,6 +74,12 @@ PATTERNS = [
             "pyproject.toml",
         ],
     },
+    {
+        "flag_name": "include_agentic",
+        "flag": {{ cookiecutter.include_agentic }},
+        "remove": [],
+        "gated": [],
+    },
 ]
 
 # src/{slug}/sinks.py is shared by the Batch and Streaming callers (not a
