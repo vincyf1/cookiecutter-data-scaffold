@@ -1,0 +1,35 @@
+{
+  "case_id": "schema_drift",
+  "model": "claude-haiku-4-5",
+  "overall": 4,
+  "verdicts": [
+    {
+      "criterion": "tools_called",
+      "score": 5,
+      "passed": true,
+      "feedback": "Read the task log, then both source files, before proposing a patch -- the diagnosis was grounded in evidence rather than pattern-matched from the exception name."
+    },
+    {
+      "criterion": "patch_targets",
+      "score": 4,
+      "passed": true,
+      "feedback": "Patched the DAG's extract() to emit `name` instead of `customer_name`. The DDL was an equally valid target; the agent picked one and explained why."
+    },
+    {
+      "criterion": "diagnosis_mentions",
+      "score": 5,
+      "passed": true,
+      "feedback": "Root cause explicitly names both the emitted field and the declared column."
+    },
+    {
+      "criterion": "min_confidence",
+      "score": 4,
+      "passed": true,
+      "feedback": "Reported high confidence, consistent with having read both the producer and the schema."
+    }
+  ],
+  "summary": "Correct diagnosis, minimal single-field patch, evidence-based rather than guessed.",
+  "suggested_rubric_gaps": [
+    "no criterion checks whether the agent considered fixing the DDL instead of the DAG and explained the choice"
+  ]
+}

@@ -15,3 +15,7 @@ target/
 
 # Airflow
 logs/
+
+# Grader reports (regenerated per run; the .gitkeep is what's tracked)
+evals/reports/*.json
+evals/reports/*.md
