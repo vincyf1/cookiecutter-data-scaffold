@@ -7,6 +7,10 @@ services:
   airflow-standalone:
     image: apache/airflow:{{ cookiecutter.airflow_version }}
     command: standalone
+    # The image runs as uid 50000. Bind-mounted host directories keep their
+    # host ownership, so if the mounts below are not writable by that uid,
+    # set AIRFLOW_UID=$(id -u) in a .env file beside this compose file.
+    user: "${AIRFLOW_UID:-50000}:0"
     ports:
       - "8080:8080"
     environment:
@@ -19,6 +23,14 @@ services:
     volumes:
       - ./src:/opt/airflow/project/src
       - ./src/{{ cookiecutter.project_slug }}/batch/dags:/opt/airflow/dags
+      # AIRFLOW__LOGGING__BASE_LOG_FOLDER defaults to $AIRFLOW_HOME/logs.
+      # Mounting it is what makes a failing task's log readable on the host.
+      - ./logs:/opt/airflow/logs
+{%- if cookiecutter.include_agentic %}
+      # The healing task writes its patch and metadata under the project
+      # root. Without this mount they never leave the container.
+      - ./artifacts:/opt/airflow/project/artifacts
+{%- endif %}
 {%- endif %}
 {%- if cookiecutter.include_streaming %}
   kafka:

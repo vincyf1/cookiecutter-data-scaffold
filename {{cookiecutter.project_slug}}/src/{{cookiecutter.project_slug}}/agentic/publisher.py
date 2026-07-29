@@ -16,7 +16,12 @@ from typing import Protocol
 from {{ cookiecutter.project_slug }}.agentic.contracts import AgentResult
 from {{ cookiecutter.project_slug }}.agentic.tools import ToolContext, ToolError, render_diff
 
-DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+# Relative to the project root, never to the process CWD. An Airflow worker
+# runs with CWD=$AIRFLOW_HOME, which is not a mounted volume -- a
+# CWD-relative default writes the patch somewhere the host never sees and a
+# container restart erases. GitHubPublisher already rooted its own local
+# copy this way; this is the constant both of them now share.
+ARTIFACTS_SUBDIR = Path("artifacts")
 
 
 @dataclass
@@ -66,7 +71,7 @@ class PRPublisher(Protocol):
 class LocalPatchPublisher:
     """Writes a .patch plus metadata. Requires no credentials."""
 
-    def __init__(self, artifacts_dir: Path = DEFAULT_ARTIFACTS_DIR) -> None:
+    def __init__(self, artifacts_dir: Path) -> None:
         self.artifacts_dir = Path(artifacts_dir)
 
     def publish(
@@ -149,7 +154,7 @@ class GitHubPublisher:
     def publish(
         self, trace_id: str, result: AgentResult, tool_ctx: ToolContext
     ) -> PublishedPatch:
-        local = LocalPatchPublisher(tool_ctx.project_root / "artifacts").publish(
+        local = LocalPatchPublisher(tool_ctx.project_root / ARTIFACTS_SUBDIR).publish(
             trace_id, result, tool_ctx
         )
         if local.patch_path is None:
@@ -193,8 +198,8 @@ class GitHubPublisher:
         return local
 
 
-def default_publisher() -> PRPublisher:
+def default_publisher(project_root: Path) -> PRPublisher:
     repo = os.environ.get("AGENTIC_GITHUB_REPO")
     if repo:
         return GitHubPublisher(repo)
-    return LocalPatchPublisher()
+    return LocalPatchPublisher(Path(project_root) / ARTIFACTS_SUBDIR)

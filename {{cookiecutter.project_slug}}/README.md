@@ -15,10 +15,27 @@ Trigger the demo DAG with the failure injected:
 ```bash
 docker compose up -d airflow-standalone
 # In the Airflow UI, trigger example_events_dag with config:
+{%- if cookiecutter.include_lakehouse %}
 #   {"failure_mode": "schema_drift"}
+{%- else %}
+#   {"failure_mode": "missing_config"}
+{%- endif %}
 ```
 
-The `load` task fails, the `heal_on_failure` task runs, and you get:
+{% if cookiecutter.include_lakehouse -%}
+`extract` emits a record keyed `customer_name`, which is not a column in
+`src/{{ cookiecutter.project_slug }}/lakehouse/create_tables.sql`, so `load`
+raises `SchemaDriftError` naming the offending field and the declared columns.
+{%- else -%}
+`load` asks for a pipeline setting called `output_file`, which
+`src/{{ cookiecutter.project_slug }}/batch/pipeline.toml` does not declare, so
+it raises `MissingConfigError` naming the setting it wanted and the settings
+that exist. (With the Lakehouse Pattern enabled the demo instead ships a
+schema-drift failure against the events DDL.)
+{%- endif %}
+
+The `load` task fails, the `heal_on_failure` task runs, and you get, under the
+project root:
 
 - `artifacts/<trace_id>.patch` — a unified diff, ready to `git apply`
 - `artifacts/<trace_id>.json` — the proposed PR title, body, and confidence
@@ -27,6 +44,11 @@ The `load` task fails, the `heal_on_failure` task runs, and you get:
 {%- else %}
 - `artifacts/traces/<trace_id>.json` — the full run as a JSON array
 {%- endif %}
+
+`docker-compose.yml` bind-mounts `./artifacts` and `./logs` so both the patch
+and the log the agent read stay visible on the host. The image runs as uid
+50000; if those directories are not writable by it, put `AIRFLOW_UID=$(id -u)`
+in a `.env` file beside `docker-compose.yml`.
 
 Nothing is applied automatically. The agent proposes; you merge.
 

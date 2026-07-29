@@ -101,6 +101,23 @@ def test_local_publisher_records_a_render_failure_without_losing_the_audit_trail
     assert meta["render_error"] in meta["body"]
 
 
-def test_default_publisher_is_local_without_configuration(monkeypatch):
+def test_default_publisher_is_local_without_configuration(monkeypatch, tmp_path):
     monkeypatch.delenv("AGENTIC_GITHUB_REPO", raising=False)
-    assert isinstance(default_publisher(), LocalPatchPublisher)
+    assert isinstance(default_publisher(tmp_path), LocalPatchPublisher)
+
+
+def test_default_publisher_writes_under_the_project_root_not_the_cwd(
+    monkeypatch, tmp_path
+):
+    # The Airflow worker's CWD is $AIRFLOW_HOME, which is not a mounted
+    # volume: a CWD-relative artifacts dir strands the patch in the
+    # container. Chdir somewhere else entirely and assert the publisher
+    # still targets the project root it was handed.
+    monkeypatch.delenv("AGENTIC_GITHUB_REPO", raising=False)
+    elsewhere = tmp_path / "worker_cwd"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    publisher = default_publisher(tmp_path / "project")
+
+    assert publisher.artifacts_dir == tmp_path / "project" / "artifacts"

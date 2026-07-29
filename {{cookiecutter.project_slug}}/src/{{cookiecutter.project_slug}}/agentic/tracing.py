@@ -17,7 +17,10 @@ from {{ cookiecutter.project_slug }}.agentic.contracts import Trace, TraceElemen
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TRACE_DIR = Path("artifacts/traces")
+# Relative to the project root, never to the process CWD: an Airflow worker's
+# CWD is not the project and is not a mounted volume, so a CWD-relative
+# default silently strands every trace inside the container.
+TRACE_SUBDIR = Path("artifacts") / "traces"
 SUMMARY_MAX_CHARS = 2000
 
 
@@ -54,6 +57,16 @@ class TraceRecorder:
         self.try_number = try_number
         self._elements: list[TraceElement] = []
         self._started = _now()
+
+    @property
+    def elements(self) -> list[TraceElement]:
+        """The elements recorded so far, in emission order.
+
+        Read-only: callers (runner.py, evals/replay.py) need to snapshot the
+        list into an AgentResult, not to append to it -- appending is
+        `add()`/`element()`'s job, which is what keeps `seq` contiguous.
+        """
+        return list(self._elements)
 
     def _next_seq(self) -> int:
         return len(self._elements)
@@ -142,7 +155,7 @@ class TraceSink(Protocol):
 class JsonlSink:
     """One JSON document per failure event, on local disk."""
 
-    def __init__(self, base_dir: Path = DEFAULT_TRACE_DIR) -> None:
+    def __init__(self, base_dir: Path) -> None:
         self.base_dir = Path(base_dir)
 
     def write(self, trace: Trace) -> None:
@@ -186,14 +199,17 @@ class DuckDBSink:
             con.close()
 
 
-def default_sink() -> TraceSink:
+def default_sink(project_root: Path) -> TraceSink:
+    # project_root is unused here on purpose: traces land in the same DuckDB
+    # file as the events table, whose path this Pattern does not own.
+    del project_root
     return DuckDBSink()
 
 {%- else %}
 
 
-def default_sink() -> TraceSink:
-    return JsonlSink()
+def default_sink(project_root: Path) -> TraceSink:
+    return JsonlSink(Path(project_root) / TRACE_SUBDIR)
 
 {%- endif %}
 

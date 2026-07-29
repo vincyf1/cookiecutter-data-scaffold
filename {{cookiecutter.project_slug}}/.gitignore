@@ -13,8 +13,14 @@ data/
 dbt_packages/
 target/
 
-# Airflow
-logs/
+# Airflow (the directory itself is tracked via .gitkeep so the compose bind
+# mount lands on a host-owned dir rather than one docker creates as root)
+logs/*
+!logs/.gitkeep
+
+# Agentic healing output: a .patch, a metadata .json, and a trace per run
+artifacts/*
+!artifacts/.gitkeep
 
 # Grader reports (regenerated per run; the .gitkeep is what's tracked)
 evals/reports/*.json

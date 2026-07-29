@@ -22,6 +22,8 @@ PATTERNS = [
         "remove": [
             f"src/{SLUG}/batch",
             "tests/test_batch_dag.py",
+            "tests/test_batch_config.py",
+            "logs",
         ],
         "gated": [
             "docker-compose.yml",
@@ -59,6 +61,9 @@ PATTERNS = [
             "tests/test_streaming_sinks.py",
             f"src/{SLUG}/agentic/tracing.py",
             "tests/test_agentic_tracing.py",
+            f"src/{SLUG}/batch/dags/example_dag.py",
+            "tests/test_batch_dag.py",
+            "tests/test_agentic_healing.py",
             "README.md",
             "transformation/dbt_project.yml",
             "transformation/models/staging/stg_events.sql",
@@ -90,6 +95,7 @@ PATTERNS = [
             "tests/test_agentic_publisher.py",
             "tests/test_agentic_healing.py",
             "evals",
+            "artifacts",
         ],
         "gated": [
             "pyproject.toml",
@@ -102,11 +108,23 @@ PATTERNS = [
     },
 ]
 
-# src/{slug}/sinks.py is shared by the Batch and Streaming callers (not a
-# Pattern of its own), so it's dropped only when neither caller survives.
+# Files whose existence depends on a *combination* of flags, so they belong
+# to no single Pattern entry. Each item is (keep_it?, paths).
 COMPOUND_REMOVALS = [
+    # src/{slug}/sinks.py is shared by the Batch and Streaming callers (not a
+    # Pattern of its own), so it's dropped only when neither caller survives.
     ({{ cookiecutter.include_batch or cookiecutter.include_streaming }}, [
         f"src/{SLUG}/sinks.py",
+    ]),
+    # batch/pipeline.toml plays the role lakehouse/create_tables.sql plays
+    # when the Lakehouse Pattern is on: the single declared source a lookup
+    # is validated against, and the demo's diagnosable failure. With the
+    # Lakehouse Pattern present the DDL is that source, so shipping these
+    # too would leave a second, unused one behind.
+    ({{ cookiecutter.include_batch and not cookiecutter.include_lakehouse }}, [
+        f"src/{SLUG}/batch/config.py",
+        f"src/{SLUG}/batch/pipeline.toml",
+        "tests/test_batch_config.py",
     ]),
 ]
 

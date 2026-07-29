@@ -1,0 +1,8 @@
+# Settings for the batch pipeline. This file is the only hand-authored
+# source for them, the way lakehouse/create_tables.sql is for the events
+# schema: batch/config.py validates every lookup against it, so a caller
+# asking for a setting that is not declared here fails loudly and namefully
+# instead of silently reading None.
+[pipeline]
+output_path = "data/events/events.parquet"
+compression = "snappy"
