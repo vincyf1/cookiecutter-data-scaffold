@@ -1,6 +1,6 @@
 import pytest
 
-from conftest import bake_with, run_cmd
+from conftest import bake_with, lint_project, run_cmd
 
 
 def test_shared_sink_uses_lakehouse_writer_when_enabled(cookies):
@@ -78,7 +78,7 @@ def test_full_bake_all_patterns_lints_clean(cookies):
     result = bake_with(cookies)
     assert result.exit_code == 0
 
-    run_cmd(result.project_path, "uvx", "ruff", "check", ".")
+    lint_project(result.project_path)
 
 
 @pytest.mark.parametrize(
@@ -102,7 +102,7 @@ def test_single_pattern_alone_lints_clean(cookies, flag):
     result = bake_with(cookies, **all_off)
     assert result.exit_code == 0
 
-    run_cmd(result.project_path, "uvx", "ruff", "check", ".")
+    lint_project(result.project_path)
 
 
 def test_dbt_only_bake_ci_tolerates_no_tests_collected(cookies):
@@ -128,7 +128,7 @@ def test_full_bake_all_patterns_off_lints_clean(cookies):
     )
     assert result.exit_code == 0
 
-    run_cmd(result.project_path, "uvx", "ruff", "check", ".")
+    lint_project(result.project_path)
 
 
 @pytest.mark.slow

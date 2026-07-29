@@ -1,11 +1,13 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from airflow.sdk import dag, task
 
 from {{ cookiecutter.project_slug }}.batch.sinks import write_events
 
 
-@dag(schedule="@daily", start_date=datetime(2024, 1, 1), catchup=False)
+# Airflow expects a timezone-aware start_date; a naive datetime here is a
+# latent bug, not just a lint finding.
+@dag(schedule="@daily", start_date=datetime(2024, 1, 1, tzinfo=UTC), catchup=False)
 def example_events_dag():
     @task
     def extract() -> list[dict]:
