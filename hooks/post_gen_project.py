@@ -83,6 +83,7 @@ PATTERNS = [
             f"src/{SLUG}/agentic",
             "tests/test_agentic_contracts.py",
             "tests/test_agentic_tracing.py",
+            "tests/test_agentic_tools.py",
         ],
         "gated": [
             "pyproject.toml",
