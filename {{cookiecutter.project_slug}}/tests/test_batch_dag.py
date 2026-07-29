@@ -1,4 +1,5 @@
 import pytest
+from airflow.sdk.exceptions import ParamValidationError
 
 from {{ cookiecutter.project_slug }}.batch.dags.example_dag import example_events_dag
 
@@ -17,7 +18,15 @@ def test_dag_exposes_a_failure_mode_param():
 @pytest.mark.parametrize("mode", ["none", "schema_drift"])
 def test_failure_mode_accepts_both_values(mode):
     dag = example_events_dag()
-    # dag.params[...] resolves to the bare value; the Param wrapper (with
-    # its enum validation) is reached via get_param().
-    dag.params.get_param("failure_mode").value = mode
-    assert dag.params["failure_mode"] == mode
+    # dag.params[...] resolves to the bare value; plain attribute assignment
+    # on the Param wrapper skips validation entirely. Drive the value
+    # through resolve(), which is where the enum constraint actually runs.
+    param = dag.params.get_param("failure_mode")
+    assert param.resolve(value=mode) == mode
+
+
+def test_failure_mode_rejects_a_value_outside_the_enum():
+    dag = example_events_dag()
+    param = dag.params.get_param("failure_mode")
+    with pytest.raises(ParamValidationError):
+        param.resolve(value="bogus")
