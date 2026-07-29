@@ -243,6 +243,41 @@ def test_docker_compose_is_valid_yaml_for_all_batch_streaming_combinations(
     assert ("kafka" in compose["services"]) == include_streaming
 
 
+@pytest.mark.parametrize(
+    "include_lakehouse,include_agentic",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_docker_compose_pip_requirements_for_all_lakehouse_agentic_combinations(
+    cookies, include_lakehouse, include_agentic
+):
+    # _PIP_ADDITIONAL_REQUIREMENTS is a single quoted YAML string built from
+    # two independent inline `{% if %}` fragments (lakehouse's, agentic's).
+    # yaml.safe_load succeeding only proves the line is well-formed YAML --
+    # "pyarrow>=17.0duckdb>=1.0" parses perfectly and is still a broken
+    # requirements string. Assert the exact rendered value instead, so a
+    # missing separator or a stray leading/trailing space fails here.
+    import yaml
+
+    # include_agentic=True requires include_batch=True.
+    result = bake_with(
+        cookies,
+        include_batch=True,
+        include_lakehouse=include_lakehouse,
+        include_agentic=include_agentic,
+    )
+    compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
+    env = compose["services"]["airflow-standalone"]["environment"]
+
+    expected = "pyarrow>=17.0"
+    if include_lakehouse:
+        expected += " duckdb>=1.0"
+    if include_agentic:
+        expected += " anthropic>=0.40 pydantic>=2.7"
+
+    assert env["_PIP_ADDITIONAL_REQUIREMENTS"] == expected
+    assert ("ANTHROPIC_API_KEY" in env) == include_agentic
+
+
 def test_agentic_bake_lints_clean(cookies):
     result = bake_with(cookies, include_agentic=True, include_batch=True)
     assert result.exit_code == 0
