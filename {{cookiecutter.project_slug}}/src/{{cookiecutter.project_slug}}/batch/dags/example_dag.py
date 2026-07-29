@@ -4,7 +4,7 @@ from airflow.sdk import Param, dag, task
 
 from {{ cookiecutter.project_slug }}.batch.sinks import write_events
 {%- if cookiecutter.include_agentic %}
-from airflow.utils.trigger_rule import TriggerRule
+from airflow.task.trigger_rule import TriggerRule
 
 from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import heal_on_failure
 {%- endif %}
@@ -35,11 +35,12 @@ def example_events_dag():
     @task
     def load(records: list[dict]) -> None:
         write_events(records)
-
 {%- if cookiecutter.include_agentic %}
+
     loaded = load(extract())
     heal_on_failure.override(trigger_rule=TriggerRule.ALL_FAILED)() << loaded
 {%- else %}
+
     load(extract())
 {%- endif %}
 

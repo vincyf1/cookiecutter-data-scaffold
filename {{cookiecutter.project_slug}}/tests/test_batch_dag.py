@@ -41,7 +41,7 @@ def test_heal_task_is_wired_downstream_of_load():
 
 
 def test_heal_task_runs_only_when_load_fails():
-    from airflow.utils.trigger_rule import TriggerRule
+    from airflow.task.trigger_rule import TriggerRule
 
     dag = example_events_dag()
     assert dag.get_task("heal_on_failure").trigger_rule == TriggerRule.ALL_FAILED
