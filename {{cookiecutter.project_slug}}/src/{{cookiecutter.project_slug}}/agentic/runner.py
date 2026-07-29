@@ -6,6 +6,7 @@ which one ran. That is what makes the default test suite deterministic:
 temperature=0 does not guarantee identical output, this seam does.
 """
 
+import copy
 import json
 from pathlib import Path
 from typing import Protocol
@@ -56,7 +57,11 @@ _MODEL_PARAMS: dict[str, dict] = {
 
 
 def _model_kwargs(model: str) -> dict:
-    return dict(_MODEL_PARAMS.get(model, {}))
+    # deepcopy, not dict(...): _MODEL_PARAMS has one level of nesting
+    # (output_config), and a shallow copy shares that nested dict with the
+    # module-level table -- a caller mutating it (e.g. Task 10's
+    # ClaudeGrader tweaking effort) would corrupt every later call.
+    return copy.deepcopy(_MODEL_PARAMS.get(model, {}))
 
 
 def dispatch_tool(tool_ctx: ToolContext, name: str, arguments: dict) -> str:
@@ -154,10 +159,11 @@ class ClaudeRunner:
                 box["input_tokens"] = response.usage.input_tokens
                 box["output_tokens"] = response.usage.output_tokens
 
+            messages.append({"role": "assistant", "content": response.content})
+
             if response.stop_reason != "tool_use":
                 break
 
-            messages.append({"role": "assistant", "content": response.content})
             results = []
             for block in response.content:
                 if block.type != "tool_use":

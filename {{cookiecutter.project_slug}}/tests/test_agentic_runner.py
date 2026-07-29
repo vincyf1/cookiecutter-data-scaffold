@@ -1,3 +1,7 @@
+import copy
+import json
+from dataclasses import dataclass, field
+
 import pytest
 
 from {{ cookiecutter.project_slug }}.agentic.contracts import (
@@ -7,6 +11,7 @@ from {{ cookiecutter.project_slug }}.agentic.contracts import (
 )
 from {{ cookiecutter.project_slug }}.agentic.runner import (
     MODEL,
+    ClaudeRunner,
     FakeRunner,
     _model_kwargs,
     dispatch_tool,
@@ -47,6 +52,20 @@ def test_model_kwargs_uses_effort_for_opus_and_never_temperature():
 def test_model_kwargs_falls_back_conservatively_for_unknown_models():
     # The intersection valid on every model: no sampling params, no effort.
     assert _model_kwargs("some-future-model") == {}
+
+
+def test_model_kwargs_returns_independent_copies_of_nested_dicts():
+    from {{ cookiecutter.project_slug }}.agentic.runner import _MODEL_PARAMS
+
+    before = copy.deepcopy(_MODEL_PARAMS)
+
+    first = _model_kwargs("claude-opus-5")
+    first["output_config"]["effort"] = "high"
+
+    second = _model_kwargs("claude-opus-5")
+
+    assert second == {"output_config": {"effort": "medium"}}
+    assert _MODEL_PARAMS == before
 
 
 def test_default_model_comes_from_the_cookiecutter_variable():
@@ -109,3 +128,95 @@ def test_fake_runner_needs_no_api_key(monkeypatch, failure_ctx):
     )
     recorder = TraceRecorder(dag_id="d", dag_run_id="r", task_id="t", try_number=1)
     assert runner.run(failure_ctx, recorder).diagnosis.root_cause == "x"
+
+
+@dataclass
+class _FakeUsage:
+    input_tokens: int = 1
+    output_tokens: int = 1
+
+
+@dataclass
+class _FakeTextBlock:
+    text: str
+    type: str = "text"
+
+
+@dataclass
+class _FakeResponse:
+    content: list
+    stop_reason: str = "end_turn"
+    usage: _FakeUsage = field(default_factory=_FakeUsage)
+
+
+class _FakeMessages:
+    """Stands in for client.messages -- no network, canned responses in order."""
+
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls = []
+
+    def create(self, **kwargs):
+        # runner.py mutates its `messages` list in place after this call
+        # returns, so a snapshot (not the live list) is what a caller must
+        # capture to see what was actually sent on this turn.
+        kwargs = {**kwargs, "messages": list(kwargs["messages"])}
+        self.calls.append(kwargs)
+        return self._responses.pop(0)
+
+
+class _FakeClient:
+    def __init__(self, responses):
+        self.messages = _FakeMessages(responses)
+
+
+def test_claude_runner_carries_the_final_assistant_turn_into_the_diagnosis_call(
+    failure_ctx,
+):
+    """The model can finish by writing prose instead of exhausting tool calls.
+
+    Regression test: that concluding turn must reach `_final_diagnosis` so it
+    sees the model's own synthesis, not just the raw tool history -- and it
+    must be recorded exactly once, never duplicated onto a tool-use path.
+    """
+    conclusion = _FakeTextBlock(text="I've read the log and the source.")
+    diagnosis_payload = {
+        "root_cause": "field renamed",
+        "offending_field": "customer_name",
+        "confidence": "high",
+        "patch_summary": "rename to name",
+    }
+    diagnosis_block = _FakeTextBlock(text=json.dumps(diagnosis_payload))
+
+    fake_client = _FakeClient(
+        responses=[
+            _FakeResponse(content=[conclusion], stop_reason="end_turn"),
+            _FakeResponse(content=[diagnosis_block], stop_reason="end_turn"),
+        ]
+    )
+
+    runner = ClaudeRunner(model="claude-haiku-4-5")
+    runner._client = lambda: fake_client
+
+    recorder = TraceRecorder(
+        dag_id=failure_ctx.dag_id,
+        dag_run_id=failure_ctx.dag_run_id,
+        task_id=failure_ctx.task_id,
+        try_number=failure_ctx.try_number,
+    )
+
+    result = runner.run(failure_ctx, recorder)
+
+    assert result.diagnosis.offending_field == "customer_name"
+
+    # First call: only the initial user turn.
+    assert [m["role"] for m in fake_client.messages.calls[0]["messages"]] == ["user"]
+
+    # Second call (the diagnosis turn) must include the assistant's
+    # conclusion exactly once, sandwiched between the original user turn
+    # and the synthetic "return your diagnosis" turn -- not duplicated,
+    # and not dropped.
+    diagnosis_messages = fake_client.messages.calls[1]["messages"]
+    roles = [m["role"] for m in diagnosis_messages]
+    assert roles == ["user", "assistant", "user"]
+    assert diagnosis_messages[1]["content"] == [conclusion]
