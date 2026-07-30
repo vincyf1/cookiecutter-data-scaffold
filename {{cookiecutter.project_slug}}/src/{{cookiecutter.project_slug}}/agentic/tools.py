@@ -135,14 +135,30 @@ def render_diff(ctx: ToolContext) -> str:
     return "".join(chunks)
 
 
-TOOL_SPECS = [
-    {
-        "name": "read_task_log",
-        "description": (
+@dataclass(frozen=True)
+class ToolDefinition:
+    """One tool, described without naming a model provider.
+
+    `parameters` is plain JSON Schema. Rendering a definition into a
+    particular provider's tool format belongs to that provider's runner --
+    Anthropic nests the schema under `input_schema`, OpenAI under
+    `function.parameters`. Keeping that rename out of this module is what
+    lets a second provider reuse these tools rather than fork them.
+    """
+
+    name: str
+    description: str
+    parameters: dict
+
+
+TOOL_DEFINITIONS = [
+    ToolDefinition(
+        name="read_task_log",
+        description=(
             "Read the tail of the failing Airflow task's log. Call this first -- "
             "the exception message names the offending field."
         ),
-        "input_schema": {
+        parameters={
             "type": "object",
             "properties": {
                 "task_id": {"type": "string", "description": "The failing task id."},
@@ -154,14 +170,14 @@ TOOL_SPECS = [
             "required": ["task_id"],
             "additionalProperties": False,
         },
-    },
-    {
-        "name": "read_repo_file",
-        "description": (
+    ),
+    ToolDefinition(
+        name="read_repo_file",
+        description=(
             "Read a source file, relative to the project root. Use this to inspect "
             "the DAG that produced the bad record and the DDL that defines the schema."
         ),
-        "input_schema": {
+        parameters={
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Path relative to the project root."}
@@ -169,14 +185,14 @@ TOOL_SPECS = [
             "required": ["path"],
             "additionalProperties": False,
         },
-    },
-    {
-        "name": "propose_patch",
-        "description": (
+    ),
+    ToolDefinition(
+        name="propose_patch",
+        description=(
             "Stage a single replacement in a file. old_str must occur exactly once. "
             "Nothing is written to disk; the staged edits become a reviewable diff."
         ),
-        "input_schema": {
+        parameters={
             "type": "object",
             "properties": {
                 "path": {"type": "string"},
@@ -187,5 +203,5 @@ TOOL_SPECS = [
             "required": ["path", "old_str", "new_str", "rationale"],
             "additionalProperties": False,
         },
-    },
+    ),
 ]

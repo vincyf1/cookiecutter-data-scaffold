@@ -2,8 +2,9 @@ import pytest
 
 from {{ cookiecutter.project_slug }}.agentic.contracts import ProposedEdit
 from {{ cookiecutter.project_slug }}.agentic.tools import (
-    TOOL_SPECS,
+    TOOL_DEFINITIONS,
     ToolContext,
+    ToolDefinition,
     ToolError,
     propose_patch,
     read_repo_file,
@@ -138,9 +139,29 @@ def test_render_diff_rejects_a_staged_edit_for_a_missing_file(ctx):
         render_diff(ctx)
 
 
-def test_tool_specs_expose_exactly_three_tools():
-    assert {spec["name"] for spec in TOOL_SPECS} == {
+def test_tool_definitions_expose_exactly_three_tools():
+    assert {definition.name for definition in TOOL_DEFINITIONS} == {
         "read_task_log",
         "read_repo_file",
         "propose_patch",
     }
+
+
+def test_tool_definitions_carry_plain_json_schema():
+    for definition in TOOL_DEFINITIONS:
+        assert isinstance(definition, ToolDefinition)
+        assert definition.description
+        assert definition.parameters["type"] == "object"
+        assert "properties" in definition.parameters
+
+
+def test_tool_definitions_name_no_provider():
+    # This module owns what the tools DO. How a tool is described to a
+    # particular model is the runner's job, because providers disagree:
+    # Anthropic nests the schema under `input_schema`, OpenAI under
+    # `function.parameters`. A provider-shaped key appearing here means the
+    # coupling has leaked back across the seam.
+    fields = set(ToolDefinition.__dataclass_fields__)
+    assert fields == {"name", "description", "parameters"}
+    for provider_key in ("input_schema", "function", "parameters_schema"):
+        assert provider_key not in fields or provider_key == "parameters"

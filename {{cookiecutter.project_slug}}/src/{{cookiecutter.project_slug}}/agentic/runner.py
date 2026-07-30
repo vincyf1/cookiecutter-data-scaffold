@@ -18,8 +18,9 @@ from {{ cookiecutter.project_slug }}.agentic.contracts import (
     ProposedEdit,
 )
 from {{ cookiecutter.project_slug }}.agentic.tools import (
-    TOOL_SPECS,
+    TOOL_DEFINITIONS,
     ToolContext,
+    ToolDefinition,
     ToolError,
     propose_patch,
     read_repo_file,
@@ -54,6 +55,31 @@ _MODEL_PARAMS: dict[str, dict] = {
     "claude-sonnet-5": {"output_config": {"effort": "medium"}},
     "claude-opus-5": {"output_config": {"effort": "medium"}},
 }
+
+
+def anthropic_tool_specs(
+    definitions: list[ToolDefinition] | None = None,
+) -> list[dict]:
+    """Render neutral tool definitions into Anthropic's `tools=` shape.
+
+    This is the provider seam for tool descriptions. `tools.py` says what a
+    tool is and does; this says how to describe it to one provider, which
+    is why the schema gets renamed here rather than there. A second runner
+    renders the same definitions differently -- OpenAI, for instance, wraps
+    each in `{"type": "function", "function": {...}}` with the schema under
+    `parameters` -- and reuses the tools themselves untouched.
+    """
+    return [
+        {
+            "name": definition.name,
+            "description": definition.description,
+            # deepcopy for the same reason _model_kwargs does it: these
+            # definitions are module-level, and handing out a reference lets
+            # one caller's edit corrupt every later render.
+            "input_schema": copy.deepcopy(definition.parameters),
+        }
+        for definition in (TOOL_DEFINITIONS if definitions is None else definitions)
+    ]
 
 
 def _model_kwargs(model: str) -> dict:
@@ -164,6 +190,7 @@ class ClaudeRunner:
             project_root=Path(ctx.project_root), log_path=Path(ctx.log_path)
         )
         messages: list[dict] = [{"role": "user", "content": render_context(ctx)}]
+        tool_specs = anthropic_tool_specs()
 
         for _ in range(self.max_iterations):
             with recorder.element("llm_turn", f"turn_{len(messages)}") as box:
@@ -171,7 +198,7 @@ class ClaudeRunner:
                     model=self.model,
                     max_tokens=MAX_TOKENS,
                     system=SYSTEM_PROMPT,
-                    tools=TOOL_SPECS,
+                    tools=tool_specs,
                     messages=messages,
                     **_model_kwargs(self.model),
                 )

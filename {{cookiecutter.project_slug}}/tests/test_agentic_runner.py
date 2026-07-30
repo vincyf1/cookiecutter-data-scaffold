@@ -14,9 +14,14 @@ from {{ cookiecutter.project_slug }}.agentic.runner import (
     ClaudeRunner,
     FakeRunner,
     _model_kwargs,
+    anthropic_tool_specs,
     dispatch_tool,
 )
-from {{ cookiecutter.project_slug }}.agentic.tools import ToolContext, ToolError
+from {{ cookiecutter.project_slug }}.agentic.tools import (
+    TOOL_DEFINITIONS,
+    ToolContext,
+    ToolError,
+)
 from {{ cookiecutter.project_slug }}.agentic.tracing import TraceRecorder
 
 
@@ -292,3 +297,28 @@ def test_final_diagnosis_does_not_collide_on_output_config_for_a_non_haiku_model
     assert kwargs["output_config"]["format"]["type"] == "json_schema"
     assert kwargs["output_config"]["effort"] == "medium"
     assert "temperature" not in kwargs
+
+
+def test_anthropic_tool_specs_render_the_providers_shape():
+    specs = anthropic_tool_specs()
+
+    assert len(specs) == len(TOOL_DEFINITIONS)
+    for spec, definition in zip(specs, TOOL_DEFINITIONS, strict=True):
+        assert set(spec) == {"name", "description", "input_schema"}
+        assert spec["name"] == definition.name
+        assert spec["description"] == definition.description
+        # Anthropic nests the JSON Schema under `input_schema`; the neutral
+        # definition calls it `parameters`. That rename is the whole seam.
+        assert spec["input_schema"] == definition.parameters
+
+
+def test_anthropic_tool_specs_do_not_alias_the_shared_definitions():
+    # Same lesson as _model_kwargs: handing out a reference to module-level
+    # state lets one caller's edit corrupt every later call.
+    first = anthropic_tool_specs()
+    first[0]["input_schema"]["properties"]["injected"] = {"type": "string"}
+
+    second = anthropic_tool_specs()
+
+    assert "injected" not in second[0]["input_schema"]["properties"]
+    assert "injected" not in TOOL_DEFINITIONS[0].parameters["properties"]
