@@ -4,13 +4,37 @@ services: {}
 {%- else %}
 services:
 {%- if cookiecutter.include_batch %}
+{%- set init_dirs = "/sources/logs /sources/artifacts" if cookiecutter.include_agentic else "/sources/logs" %}
+  # Bind-mounted host directories keep their host ownership, so on Linux the
+  # uid the airflow service runs as cannot write to them. This runs first, as
+  # root, and hands those directories to that uid -- which is what makes a
+  # fresh `git clone && docker compose up` work with no .env and no manual
+  # step. Generation still pins this host's uid in a .env beside this file:
+  # when it is present the chown is a no-op and the files stay yours, and
+  # when it is not (a clone, CI, a teammate) the fallback below still leaves
+  # the mounts writable.
+  airflow-init:
+    image: apache/airflow:{{ cookiecutter.airflow_version }}
+    user: "0:0"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - 'mkdir -p {{ init_dirs }} && chown -R "${AIRFLOW_UID:-50000}:0" {{ init_dirs }}'
+    volumes:
+      - ./logs:/sources/logs
+{%- if cookiecutter.include_agentic %}
+      - ./artifacts:/sources/artifacts
+{%- endif %}
+
   airflow-standalone:
     image: apache/airflow:{{ cookiecutter.airflow_version }}
     command: standalone
-    # The image runs as uid 50000. Bind-mounted host directories keep their
-    # host ownership, so if the mounts below are not writable by that uid,
-    # set AIRFLOW_UID=$(id -u) in a .env file beside this compose file.
+    # Falls back to the image's own uid 50000 when no .env pins a host uid;
+    # airflow-init has already chowned the mounts to whichever it resolves to.
     user: "${AIRFLOW_UID:-50000}:0"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     environment:

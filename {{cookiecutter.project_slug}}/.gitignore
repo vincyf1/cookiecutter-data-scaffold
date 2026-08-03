@@ -18,6 +18,12 @@ target/
 logs/*
 !logs/.gitkeep
 
+# Holds AIRFLOW_UID, pinned to the uid of the machine this project was
+# generated on. Committing it would hand the next machine a stale value that
+# silently breaks the same mounts the variable exists to keep writable.
+.env
+{%- if cookiecutter.include_agentic %}
+
 # Agentic healing output: a .patch, a metadata .json, and a trace per run
 artifacts/*
 !artifacts/.gitkeep
@@ -25,3 +31,4 @@ artifacts/*
 # Grader reports (regenerated per run; the .gitkeep is what's tracked)
 evals/reports/*.json
 evals/reports/*.md
+{%- endif %}

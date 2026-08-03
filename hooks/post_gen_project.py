@@ -3,6 +3,7 @@ import shutil
 
 PROJECT_DIR = os.path.realpath(os.curdir)
 SLUG = {{ cookiecutter.project_slug | tojson }}
+INCLUDE_BATCH = {{ cookiecutter.include_batch }}
 INCLUDE_LAKEHOUSE = {{ cookiecutter.include_lakehouse }}
 INCLUDE_DBT = {{ cookiecutter.include_dbt }}
 
@@ -104,6 +105,7 @@ PATTERNS = [
             "docker-compose.yml",
             ".github/workflows/ci.yml",
             "README.md",
+            ".gitignore",
         ],
     },
 ]
@@ -156,8 +158,43 @@ def sync_lakehouse_ddl():
         f.write(content)
 
 
+def write_airflow_env():
+    """Pin AIRFLOW_UID to this host's uid in a .env docker compose will read.
+
+    The airflow image runs as uid 50000, but ./logs and ./artifacts are
+    bind-mounted host directories that keep their host ownership. On Linux
+    that uid cannot write to them, so the demo's failing task never produces
+    a log the healing agent can read, and the healing task never produces a
+    patch.
+
+    Compose's airflow-init service is what guarantees those mounts are
+    writable, so this file is not what makes `docker compose up` work -- it
+    is gitignored and absent on any machine that did not run cookiecutter.
+    What it buys is ownership: with the host uid pinned here, init's chown is
+    a no-op and the logs and patches stay readable and deletable as you,
+    rather than as uid 50000. See the README for how to refresh it elsewhere.
+    """
+    if not INCLUDE_BATCH or not hasattr(os, "getuid"):
+        # No airflow service means no uid to pin; and on Windows there is no
+        # uid to read, where the image's own 50000 is already correct.
+        return
+    env_path = os.path.join(PROJECT_DIR, ".env")
+    with open(env_path, "w") as f:
+        f.write(
+            "# Written at generation time by cookiecutter-data-scaffold, and\n"
+            "# specific to the machine that generated this project. docker\n"
+            "# compose reads this file automatically.\n"
+            "#\n"
+            "# The airflow image runs as uid 50000; the ./logs and ./artifacts\n"
+            "# bind mounts keep their host ownership. Pinning the host uid is\n"
+            "# what keeps those mounts writable from inside the container.\n"
+            f"AIRFLOW_UID={os.getuid()}\n"
+        )
+
+
 def main():
     sync_lakehouse_ddl()
+    write_airflow_env()
     for pattern in PATTERNS:
         if not pattern["flag"]:
             for path in pattern["remove"]:

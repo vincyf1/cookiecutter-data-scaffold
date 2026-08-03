@@ -47,8 +47,19 @@ project root:
 
 `docker-compose.yml` bind-mounts `./artifacts` and `./logs` so both the patch
 and the log the agent read stay visible on the host. The image runs as uid
-50000; if those directories are not writable by it, put `AIRFLOW_UID=$(id -u)`
-in a `.env` file beside `docker-compose.yml`.
+50000, which on Linux cannot write to those host-owned directories, so an
+`airflow-init` service runs first as root and chowns them to the uid airflow
+will use. That runs on every `docker compose up`, including a fresh clone, so
+there is no manual step.
+
+Generation also pinned this machine's uid in a gitignored `.env` beside
+`docker-compose.yml`. That is a convenience, not a requirement: with it, the
+chown is a no-op and the logs and patches stay owned by you instead of by uid
+50000. On a different machine, refresh it to keep that property:
+
+```bash
+echo "AIRFLOW_UID=$(id -u)" > .env
+```
 
 Nothing is applied automatically. The agent proposes; you merge.
 

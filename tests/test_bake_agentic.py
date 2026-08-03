@@ -112,6 +112,23 @@ def test_agentic_tools_absent_when_disabled(cookies):
     assert not (result.project_path / "tests" / "test_agentic_tools.py").exists()
 
 
+def test_gitignore_agentic_rules_track_the_flag(cookies):
+    # artifacts/ and evals/reports/ are both deleted by the post-gen hook when
+    # the Pattern is off, so their ignore rules would be ignoring paths that
+    # cannot exist -- a dead branch of exactly the kind the template promises
+    # not to ship.
+    on = bake_with(cookies, include_agentic=True, include_batch=True)
+    off = bake_with(cookies, include_agentic=False, include_batch=True)
+    on_text = (on.project_path / ".gitignore").read_text()
+    off_text = (off.project_path / ".gitignore").read_text()
+    assert "artifacts/*" in on_text
+    assert "evals/reports/" in on_text
+    assert "artifacts" not in off_text
+    assert "evals" not in off_text
+    # The rules shared with every other Pattern must survive either way.
+    assert "logs/*" in off_text
+
+
 def test_pydantic_dependency_tracks_the_flag(cookies):
     on = bake_with(cookies, include_agentic=True, include_batch=True)
     off = bake_with(cookies, include_agentic=False, include_batch=True)
@@ -228,6 +245,29 @@ def test_compose_mounts_the_artifact_and_log_volumes(cookies):
     assert "./logs:/opt/airflow/logs" in compose
 
 
+def test_compose_init_chowns_artifacts_only_when_agentic_enabled(cookies):
+    # The chown list is built from one Jinja expression, so asserting the
+    # exact command is what catches a stray separator or a dropped path --
+    # `mkdir -p /sources/logs/sources/artifacts` is a single valid path and
+    # would leave ./artifacts unwritable with nothing failing loudly.
+    #
+    # Both services must interpolate the *same* uid expression: init chowns
+    # to whatever airflow-standalone will run as. If they ever diverge, init
+    # hands the mounts to a uid that is not the one doing the writing.
+    import yaml
+
+    for agentic, dirs in [(True, "/sources/logs /sources/artifacts"), (False, "/sources/logs")]:
+        result = bake_with(cookies, include_agentic=agentic, include_batch=True)
+        compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
+        services = compose["services"]
+
+        assert services["airflow-init"]["command"] == [
+            "-c",
+            f'mkdir -p {dirs} && chown -R "${{AIRFLOW_UID:-50000}}:0" {dirs}',
+        ]
+        assert services["airflow-standalone"]["user"] == "${AIRFLOW_UID:-50000}:0"
+
+
 def test_compose_omits_the_artifacts_mount_when_agentic_disabled(cookies):
     result = bake_with(cookies, include_agentic=False, include_batch=True)
     compose = (result.project_path / "docker-compose.yml").read_text()
@@ -306,7 +346,11 @@ def test_pipeline_config_ships_only_where_there_is_no_ddl(cookies):
 # directory Airflow does not use, and artifacts landed outside the project.
 # None of that is visible without actually running the DAG, which is what this
 # does. It needs no API key and no network: FakeRunner stands in for the model,
-# and the tools, tracing, diff rendering, and publishing all run for real.
+# and tracing, diff rendering, and publishing all run for real.
+#
+# The tool layer is NOT exercised here -- FakeRunner replays tool *names* into
+# the trace without dispatching them, so nothing touches ToolContext. Real tool
+# dispatch is covered one tier up, by ReplayRunner in evals/test_replay.py.
 # --------------------------------------------------------------------------
 
 HEAL_DRIVER = '''"""Runs one real DagRun and records what the healer was told.
