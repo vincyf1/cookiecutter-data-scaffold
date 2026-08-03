@@ -81,6 +81,13 @@ def _write(path: Path, content: str) -> None:
 
 
 def build_case_project(tmp_path: Path, case) -> tuple[Path, FailureContext]:
+    if case.failure_mode not in FAILURE_EXCEPTIONS:
+        supported = ", ".join(sorted(FAILURE_EXCEPTIONS))
+        raise ValueError(
+            f"eval case {case.id!r} has unknown failure_mode {case.failure_mode!r}; "
+            f"expected one of: {supported}"
+        )
+
     dag_path = tmp_path / "src" / "pkg" / "batch" / "dags" / "example_dag.py"
 
     if case.failure_mode == "missing_config":

@@ -4,7 +4,7 @@ import os
 import pytest
 
 from evals.grader import GRADER_MODEL, ClaudeGrader, write_report
-from evals.harness import load_cases, patch_text, score_case
+from evals.harness import EvalCase, load_cases, patch_text, score_case
 from evals.replay import ReplayRunner, cassette_for
 
 from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import run_healing
@@ -25,6 +25,18 @@ CASE_IDS = [case.id for case in CASES]
 
 def test_at_least_one_case_is_defined():
     assert CASES, "evals/cases/ contains no YAML cases"
+
+
+def test_unknown_failure_mode_reports_the_case_and_supported_modes(tmp_path):
+    case = EvalCase(id="typo_case", failure_mode="schema-drf", expect={}, score={})
+
+    with pytest.raises(ValueError) as error:
+        build_case_project(tmp_path, case)
+
+    assert str(error.value) == (
+        "eval case 'typo_case' has unknown failure_mode 'schema-drf'; "
+        "expected one of: missing_config, schema_drift"
+    )
 
 
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
