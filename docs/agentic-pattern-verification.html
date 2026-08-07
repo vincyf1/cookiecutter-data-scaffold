@@ -393,15 +393,15 @@
         Gates 01&ndash;08 need no API key, no network beyond a package install, and no
         Docker daemon; they were executed against branch
         <code>agentic-self-healing-pattern</code> and the outputs below are the real ones.
-        Gates 09&ndash;11 need Docker or a funded API key and are marked as such &mdash; nobody
+        Gates 09 and 10 need Docker or a funded API key and are marked as such &mdash; nobody
         has run them for you.
       </p>
 
       <dl class="facts">
         <div class="fact"><dt>Gates</dt><dd>12</dd></div>
-        <div class="fact"><dt>Verified here</dt><dd>8</dd></div>
-        <div class="fact"><dt>Need an operator</dt><dd>3</dd></div>
-        <div class="fact is-blocked"><dt>Failing</dt><dd>1</dd></div>
+        <div class="fact"><dt>Verified</dt><dd>10</dd></div>
+        <div class="fact"><dt>Need an operator</dt><dd>2</dd></div>
+        <div class="fact"><dt>Failing</dt><dd>0</dd></div>
       </dl>
     </header>
 
@@ -601,7 +601,7 @@ env -u ANTHROPIC_API_KEY uv run pytest -q
         <div class="gate-head">
           <span class="gate-n">06</span>
           <h3 class="gate-title">The generated project&rsquo;s own lint</h3>
-          <span class="pill blocked">Blocked</span>
+          <span class="pill pass">Verified</span>
         </div>
         <div class="gate-body">
           <p class="gate-proves"><b>Proves</b>
@@ -612,51 +612,53 @@ env -u ANTHROPIC_API_KEY uv run pytest -q
             <div class="code-head">shell &middot; generated project root</div>
 <pre class="code"><code>uv run ruff check .
 
-<span class="bad">Found 15 errors.</span>
-<span class="cmt">[*] 8 fixable with the `--fix` option</span>
+<span class="ok">All checks passed!</span></code></pre>
+          </div>
 
-5  I001     unsorted-imports
-2  BLE001   blind-except
-2  PLW1510  subprocess-run-without-check
-2  UP017    datetime-timezone-utc
-1  ISC004   implicit-string-concatenation-in-collection-literal
-1  RUF012   mutable-class-default
-1  RUF059   unused-unpacked-variable
-1  SIM117   multiple-with-statements</code></pre>
+          <div class="note">
+            <span class="note-label">What this used to fail with, and why</span>
+            <p>
+              Until 7 August this reported <strong>Found 15 errors</strong> under ruff 0.16.1.
+              The errors were real but they were a symptom: the generated
+              <code>[tool.ruff]</code> set <code>target-version</code>, <code>line-length</code>
+              and <code>src</code> but never selected any rules, so the enabled set was whatever
+              the installed ruff defaulted to &mdash; <code>--show-settings</code> reported
+              <strong>414 rules enabled</strong> under 0.16.1, against roughly 60 for the classic
+              <code>E4</code>/<code>E7</code>/<code>E9</code>/<code>F</code>. With
+              <code>ruff&gt;=0.6</code> floating and no lockfile, a project nobody had touched
+              could go red because a newer ruff resolved.
+            </p>
+            <p>
+              Fixed by selecting rules explicitly in both <code>pyproject.toml</code> files &mdash;
+              the second of the two options this gate originally proposed. Pin the rules, not the
+              tool: bounding <code>ruff&lt;0.17</code> would freeze users on today&rsquo;s linter
+              to work around a config gap, and would need bumping forever.
+            </p>
           </div>
 
           <div class="note warn">
-            <span class="note-label">Why this fails, and why the template does not</span>
+            <span class="note-label">Why the suite never caught it</span>
             <p>
-              The generated <code>pyproject.toml</code> asks for <code>ruff&gt;=0.6</code> with
-              no upper bound and ships no lockfile, so a fresh <code>uv sync</code> resolves
-              whatever is newest &mdash; today <strong>0.16.1</strong>, whose default rule set is
-              wider than it used to be. The template repo is insulated because its own
-              <code>uv.lock</code> pins <strong>0.15.20</strong>.
+              <code>tests/conftest.py</code> lints bakes with <code>uvx ruff@0.15.20</code> while a
+              generated project resolves <code>ruff&gt;=0.6</code> to 0.16.1 &mdash; so
+              <code>test_full_bake_all_patterns_lints_clean</code> was linting with a different
+              ruff than any user gets, and stayed green for the whole stretch where every bake was
+              failing. The pin now tracks what users resolve.
             </p>
             <p>
-              Confirmed by running both versions over the same tree with <code>--isolated</code>,
-              so no project config is involved: 0.15.20 reports <em>All checks passed</em> and
-              0.16.1 reports 13 errors. The gap is the ruff version, not the code.
-            </p>
-            <p>
-              This is <strong>not</strong> a regression from the current branch &mdash; a bake
-              from the commit before it produces the identical count. It is a pre-existing
-              time bomb that went off when ruff shipped new defaults.
+              Worth recognising the shape: a cheap tier substituting its own stable answer for
+              exactly the variable that breaks in production. The same shape hid the missing
+              <code>list_repo_files</code> tool (cassettes hard-code the file path that live
+              path-discovery could not derive) and a grader schema that was a 400 on arrival
+              (<code>MagicMock</code> stands in for the API, so its validator never saw the
+              schema). Three instances in one week.
             </p>
           </div>
-
-          <p class="gate-proves"><b>The two honest fixes</b>
-            Pin the floating dependency (<code>"ruff&gt;=0.6,&lt;0.17"</code>) so generated
-            projects get a rule set their code was written against; or select rules explicitly
-            in the generated <code>[tool.ruff.lint]</code> so upstream default changes cannot
-            move the goalposts. The second is more work and more durable. Either way, whoever
-            fixes it should also decide whether generated projects ought to commit a lockfile.</p>
         </div>
-        <div class="gate-pass is-blocked">
-          <b>Currently</b>Fails with 15 errors under ruff 0.16.1. Decide before merge whether
-          this blocks you: it does not affect the Pattern&rsquo;s behaviour, but it does mean
-          a user&rsquo;s first CI run is red.
+        <div class="gate-pass">
+          <b>Pass</b>Clean across four cookiecutter answer combinations &mdash; defaults,
+          no-agentic, no-lakehouse, and minimal &mdash; because two of the corrected import
+          blocks are Jinja-conditional and only some answers render them.
         </div>
       </div>
     </section>
@@ -806,10 +808,30 @@ uv run pytest -m live -q</code></pre>
           <p class="gate-proves"><b>Watch for</b>
             Without the key these skip rather than fail. A run of &ldquo;0 selected&rdquo; means
             the marker is missing, not that everything passed.</p>
+
+          <div class="note warn">
+            <span class="note-label">This gate has already earned its keep</span>
+            <p>
+              It is the gate that caught the agent having no way to <em>find</em> a file. A
+              <code>FailureContext</code> names a <code>dag_id</code> and a <code>task_id</code>,
+              never a path, and the DAG id <code>example_events_dag</code> does not match the
+              filename <code>example_dag.py</code> &mdash; so the agent burned all twelve
+              iterations on seventeen failed <code>read_repo_file</code> guesses, degenerating to
+              casing permutations, then correctly refused to speculate and set confidence low.
+              Both required criteria failed from that single cause.
+            </p>
+            <p>
+              Replay could never have caught it: the cassettes hard-code the correct path, so
+              <code>ReplayRunner</code> hands the agent the answer to the exact question the live
+              agent fails at. A <code>list_repo_files</code> tool closed it.
+            </p>
+          </div>
         </div>
         <div class="gate-pass">
           <b>Pass</b>The live tests pass, and the diagnosis names the real offending field
-          rather than something generic.
+          rather than something generic. Not re-run under <code>-m live</code> since the fix,
+          though gate 11 drives the identical loop through <code>ClaudeRunner</code> and produced
+          a correct high-confidence patch on every case.
         </div>
       </div>
     </section>
@@ -819,7 +841,7 @@ uv run pytest -m live -q</code></pre>
         <div class="gate-head">
           <span class="gate-n">11</span>
           <h3 class="gate-title">Graded evals</h3>
-          <span class="pill manual">Operator</span>
+          <span class="pill pass">Verified</span>
         </div>
         <div class="gate-body">
           <p class="gate-proves"><b>Proves</b>
@@ -831,10 +853,42 @@ uv run pytest -m live -q</code></pre>
 <pre class="code"><code>uv run pytest -m graded -q
 ls evals/reports/             <span class="cmt"># timestamped .md and .json per run</span></code></pre>
           </div>
+
+          <div class="note warn">
+            <span class="note-label">Two bugs this gate found, both in the grader</span>
+            <p>
+              First run: <code>BadRequestError</code> &mdash;
+              <em>for &lsquo;integer&rsquo; type, properties maximum, minimum are not
+              supported</em>. Structured outputs accept only a subset of JSON Schema, and
+              numerical constraints are rejected, so the grade schema was a 400 before the model
+              was ever consulted. Score bounds are now an <code>enum</code> of
+              <code>[0&hellip;5]</code>, which is a supported keyword and the same constraint.
+            </p>
+            <p>
+              Second run: <em>grader skipped required criteria</em>. It had skipped nothing
+              &mdash; it graded all six criteria and scored the agent 5/5 &mdash; but
+              <code>criterion</code> was a free-form string, so it wrote labels rather than
+              identifiers, and no two runs agreed: <code>tools_called</code> came back as
+              <code>'tools_called must_call'</code> on one case and <code>'tools_called:
+              must_call all of [read_task_log, read_repo_file, propose_patch]'</code> on the
+              other. The schema is now built per case, with <code>criterion</code> an enum of
+              that case&rsquo;s own rubric keys.
+            </p>
+            <p>
+              Both fixes are the same move: make the wrong answer unrepresentable rather than ask
+              for the right one. Both are now guarded by tests that need no API key &mdash; one
+              walks every output schema for keywords the subset rejects, the other asserts every
+              criterion named in a case&rsquo;s <code>score</code> is nameable from its
+              <code>expect</code>. Each was verified to fail against the exact defect it
+              describes before being kept.
+            </p>
+          </div>
         </div>
         <div class="gate-pass">
-          <b>Pass</b>Every case meets its <code>required</code> criteria. Advisory criteria may
-          miss; read the report rather than only the exit code.
+          <b>Pass</b>Both cases meet their <code>required</code> criteria; the agent scored 5/5
+          on each. Advisory criteria may miss; read the report rather than only the exit code.
+          Run by the operator on 7 August &mdash; console output not reproduced here, unlike the
+          gates above, because it was reported rather than captured.
         </div>
       </div>
     </section>
@@ -848,18 +902,18 @@ ls evals/reports/             <span class="cmt"># timestamped .md and .json per 
             <tr><th>Gate</th><th>Status</th><th>Blocks merge?</th></tr>
           </thead>
           <tbody>
-            <tr><td>00&ndash;05, 07&ndash;08</td><td><span class="pill pass">Verified</span></td><td>No &mdash; all pass</td></tr>
-            <tr><td>06 &middot; generated lint</td><td><span class="pill blocked">Blocked</span></td><td>Your call. Pre-existing, cosmetic, but user-visible on their first push</td></tr>
+            <tr><td>00&ndash;08</td><td><span class="pill pass">Verified</span></td><td>No &mdash; all pass</td></tr>
             <tr><td>09 &middot; Docker demo</td><td><span class="pill manual">Operator</span></td><td>Yes &mdash; nothing else exercises the real container</td></tr>
-            <tr><td>10&ndash;11 &middot; live and graded</td><td><span class="pill manual">Operator</span></td><td>No &mdash; they never gated CI by design</td></tr>
+            <tr><td>10 &middot; live agent</td><td><span class="pill manual">Operator</span></td><td>No &mdash; it never gated CI by design</td></tr>
+            <tr><td>11 &middot; graded evals</td><td><span class="pill pass">Verified</span></td><td>No &mdash; passes; found two grader bugs on the way</td></tr>
           </tbody>
         </table>
       </div>
       <p>
         The recommendation: run gate 09 on a Linux host before merging, because it is the only
-        gate that proves the bind-mount fix on the platform where the bug exists. Gate 06 is a
-        judgment call &mdash; it predates this branch, so merging does not make it worse, but it
-        is now documented rather than waiting to be discovered by a stranger.
+        gate that proves the bind-mount fix on the platform where the bug exists. Gate 06 was
+        blocked and is now fixed at its source rather than worked around. Gate 10 is worth one
+        re-run for completeness, though gate 11 already drives the same live loop.
       </p>
 
       <div class="note">
@@ -873,9 +927,10 @@ ls evals/reports/             <span class="cmt"># timestamped .md and .json per 
     </section>
 
     <footer>
-      Runbook for branch <code>agentic-self-healing-pattern</code> &middot; 3 August 2026.
-      Gates 00&ndash;08 executed on macOS with uv, ruff 0.15.20 in the template and 0.16.1 in a
-      generated project. Outputs quoted verbatim. Gates 09&ndash;11 not run.
+      Runbook for branch <code>agentic-self-healing-pattern</code> &middot; 3 August 2026,
+      revised 7 August. Gates 00&ndash;08 executed on macOS with uv and ruff 0.16.1 in both the
+      template and a generated project, outputs quoted verbatim. Gate 11 run by the operator;
+      outcome reported rather than captured, and marked as such. Gates 09 and 10 not run.
     </footer>
 
   </main>
