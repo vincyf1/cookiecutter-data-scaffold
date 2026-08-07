@@ -33,6 +33,15 @@ MODEL = "{{ cookiecutter.agentic_model }}"
 MAX_ITERATIONS = 12
 MAX_TOKENS = 8000
 
+# How much of a tool's output the *model* is allowed to see. Deliberately not
+# tracing's SUMMARY_MAX_CHARS: a trace is a record for humans and is kept short
+# so it stays readable, while this is the agent's only view of a file it has
+# been asked to patch. Sharing the trace limit meant every source file over
+# 2 KB arrived cut in half -- the agent said as much ("cannot propose a
+# specific patch ... due to file truncation") and then correctly declined to
+# guess at code it had not seen.
+MAX_TOOL_RESULT_CHARS = 40000
+
 SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "diagnose.md").read_text()
 
 DIAGNOSIS_SCHEMA = {
@@ -233,7 +242,7 @@ class ClaudeRunner:
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": truncate(output),
+                        "content": truncate(output, MAX_TOOL_RESULT_CHARS),
                         "is_error": is_error,
                     }
                 )

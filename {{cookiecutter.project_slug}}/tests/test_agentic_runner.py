@@ -333,3 +333,63 @@ def test_anthropic_tool_specs_do_not_alias_the_shared_definitions():
 
     assert "injected" not in second[0]["input_schema"]["properties"]
     assert "injected" not in TOOL_DEFINITIONS[0].parameters["properties"]
+
+
+@dataclass
+class _FakeToolUseBlock:
+    name: str
+    input: dict
+    id: str = "tu_1"
+    type: str = "tool_use"
+
+
+def test_a_file_larger_than_the_trace_limit_reaches_the_model_intact(failure_ctx, tmp_path):
+    """The agent's view of a file must not be bounded by the trace's limit.
+
+    Regression: tool results were truncated with tracing's SUMMARY_MAX_CHARS
+    (2000), a constant meant for keeping a human-readable record short. Every
+    source file over 2 KB therefore arrived at the model cut in half. The eval
+    fixtures are all smaller than that, so only a real project exposed it --
+    the agent reported "cannot propose a specific patch ... due to file
+    truncation" and, correctly, refused to guess.
+    """
+    from {{ cookiecutter.project_slug }}.agentic.tracing import SUMMARY_MAX_CHARS
+
+    body = "".join(f"line_{n} = {n}\n" for n in range(SUMMARY_MAX_CHARS))
+    assert len(body) > SUMMARY_MAX_CHARS
+    (tmp_path / "src" / "big.py").write_text(body)
+
+    diagnosis_payload = {
+        "root_cause": "x",
+        "offending_field": None,
+        "confidence": "low",
+        "patch_summary": "y",
+    }
+    fake_client = _FakeClient(
+        responses=[
+            _FakeResponse(
+                content=[_FakeToolUseBlock(name="read_repo_file", input={"path": "src/big.py"})],
+                stop_reason="tool_use",
+            ),
+            _FakeResponse(content=[_FakeTextBlock(text="done")], stop_reason="end_turn"),
+            _FakeResponse(
+                content=[_FakeTextBlock(text=json.dumps(diagnosis_payload))],
+                stop_reason="end_turn",
+            ),
+        ]
+    )
+
+    runner = ClaudeRunner(model="claude-haiku-4-5")
+    runner._client = lambda: fake_client
+    recorder = TraceRecorder(dag_id="d", dag_run_id="r", task_id="t", try_number=1)
+
+    runner.run(failure_ctx, recorder)
+
+    # The tool_result turn is the second call's last message.
+    tool_result = fake_client.messages.calls[1]["messages"][-1]["content"][0]
+    assert tool_result["content"] == body, "the model saw a truncated file"
+
+    # The trace stays short: bounding the record is right, bounding the
+    # agent's evidence is not, and one constant cannot serve both.
+    summary = next(e for e in recorder.elements if e.kind == "tool_call").output_summary
+    assert len(summary["text"]) < len(body)
