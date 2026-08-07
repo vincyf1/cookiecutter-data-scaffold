@@ -45,30 +45,47 @@ class GradeReport(BaseModel):
     suggested_rubric_gaps: list[str] = []
 
 
-GRADE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "overall": {"type": "integer", "enum": SCORE_VALUES},
-        "verdicts": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "criterion": {"type": "string"},
-                    "score": {"type": "integer", "enum": SCORE_VALUES},
-                    "passed": {"type": "boolean"},
-                    "feedback": {"type": "string"},
+def grade_schema(criteria: list[str]) -> dict:
+    """Build the wire schema for one case, keyed to that case's own rubric.
+
+    `criterion` is an enum of the rubric's keys rather than a free string,
+    because a free string invites the grader to write a *label* instead of an
+    identifier. The same key came back as `tools_called must_call` on one run
+    and `tools_called: must_call all of [read_task_log, read_repo_file,
+    propose_patch]` on the next, and a key whose expectation holds two
+    sub-constraints got split into two verdicts. Every one of those is a
+    defensible thing to call a criterion; none of them can be joined back to
+    the rubric that asked for it, which is what a report is for.
+
+    Constraining the name also removes the grader's only outlet for noticing
+    something the rubric missed -- so that observation belongs in
+    `suggested_rubric_gaps`, which is required precisely so it has somewhere
+    to go.
+    """
+    return {
+        "type": "object",
+        "properties": {
+            "overall": {"type": "integer", "enum": SCORE_VALUES},
+            "verdicts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "criterion": {"type": "string", "enum": list(criteria)},
+                        "score": {"type": "integer", "enum": SCORE_VALUES},
+                        "passed": {"type": "boolean"},
+                        "feedback": {"type": "string"},
+                    },
+                    "required": ["criterion", "score", "passed", "feedback"],
+                    "additionalProperties": False,
                 },
-                "required": ["criterion", "score", "passed", "feedback"],
-                "additionalProperties": False,
             },
+            "summary": {"type": "string"},
+            "suggested_rubric_gaps": {"type": "array", "items": {"type": "string"}},
         },
-        "summary": {"type": "string"},
-        "suggested_rubric_gaps": {"type": "array", "items": {"type": "string"}},
-    },
-    "required": ["overall", "verdicts", "summary", "suggested_rubric_gaps"],
-    "additionalProperties": False,
-}
+        "required": ["overall", "verdicts", "summary", "suggested_rubric_gaps"],
+        "additionalProperties": False,
+    }
 
 GRADER_SYSTEM = """You grade an automated debugging agent's work against a rubric.
 
@@ -80,8 +97,16 @@ Score each rubric criterion independently from 0 to 5 and say specifically
 what was right or wrong. A single overall number hides which criterion moved;
 per-criterion feedback is the point.
 
+Emit exactly one verdict per rubric criterion, and set `criterion` to that
+criterion's key verbatim -- not a prettier restatement of it, and not one
+verdict per sub-constraint of a key. Reports are joined back to the rubric by
+that string. Where a key holds several sub-constraints, weigh them together
+into a single verdict and use the feedback to say which one moved the score.
+
 Also list criteria the rubric should have had but did not. If the agent did
-something notably good or bad that no criterion covers, that is a rubric gap.
+something notably good or bad that no criterion covers, that is a rubric gap:
+put it in `suggested_rubric_gaps`, which is where a missing criterion belongs.
+Do not invent a verdict for it.
 """
 
 
@@ -134,7 +159,10 @@ class ClaudeGrader:
         model_kwargs = _model_kwargs(self.model)
         extra_output_config = model_kwargs.pop("output_config", {})
         output_config = {
-            "format": {"type": "json_schema", "schema": GRADE_SCHEMA},
+            "format": {
+                "type": "json_schema",
+                "schema": grade_schema(sorted(case.expect)),
+            },
             **extra_output_config,
         }
 

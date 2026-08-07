@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from evals.grader import (
-    GRADE_SCHEMA,
     GRADER_MODEL,
     ClaudeGrader,
     CriterionVerdict,
     FakeGrader,
     GradeReport,
+    grade_schema,
     render_markdown,
     write_report,
 )
@@ -22,8 +22,8 @@ from {{ cookiecutter.project_slug }}.agentic.runner import DIAGNOSIS_SCHEMA
 # a 400 before the model is ever consulted.
 #
 # This test exists because every other test of the grader mocks the client, so
-# the schema is never seen by the API's validator -- GRADE_SCHEMA shipped with
-# `minimum`/`maximum` on its integer scores and stayed green until someone ran
+# the schema is never seen by the API's validator -- the grade schema shipped
+# with `minimum`/`maximum` on its integer scores and stayed green until someone ran
 # `-m graded`, which needs a key and is deselected by default. Express a bounded
 # integer as an `enum` of its allowed values instead; that keyword is supported.
 UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
@@ -66,7 +66,10 @@ def _schema_keywords(schema) -> set[str]:
 
 @pytest.mark.parametrize(
     ("name", "schema"),
-    [("GRADE_SCHEMA", GRADE_SCHEMA), ("DIAGNOSIS_SCHEMA", DIAGNOSIS_SCHEMA)],
+    [
+        ("grade_schema", grade_schema(["tools_called", "patch_targets"])),
+        ("DIAGNOSIS_SCHEMA", DIAGNOSIS_SCHEMA),
+    ],
 )
 def test_output_schemas_use_only_supported_keywords(name, schema):
     assert not _schema_keywords(schema) & UNSUPPORTED_SCHEMA_KEYWORDS
@@ -205,3 +208,50 @@ def test_claude_grader_does_not_collide_on_output_config_for_a_non_haiku_model()
     kwargs = mock_client.messages.create.call_args.kwargs
     assert kwargs["output_config"]["format"]["type"] == "json_schema"
     assert kwargs["output_config"]["effort"] == "medium"
+
+
+def _criterion_enum(schema: dict) -> list[str]:
+    return schema["properties"]["verdicts"]["items"]["properties"]["criterion"]["enum"]
+
+
+@pytest.mark.parametrize("case", load_cases(), ids=lambda c: c.id)
+def test_every_scored_criterion_is_nameable_by_the_grader(case):
+    # The graded tier asserts every criterion in score.required appears in the
+    # report. The grader can only name what the enum permits, so a criterion
+    # listed under score but absent from expect would be unreportable -- and
+    # would fail live, per case, at API cost. This catches it offline.
+    nameable = set(_criterion_enum(grade_schema(sorted(case.expect))))
+    scored = {name for tier in case.score.values() for name in tier}
+
+    assert scored <= nameable, f"not nameable by the grader: {scored - nameable}"
+
+
+def test_criterion_is_an_enum_of_the_rubrics_own_keys():
+    # A free-form `criterion` let the grader return a label rather than a key:
+    # `tools_called` came back as 'tools_called must_call' on one run and
+    # 'tools_called: must_call all of [read_task_log, ...]' on the next, and a
+    # key with two sub-constraints was split across two verdicts. Reports are
+    # joined to the rubric by this exact string, so it cannot be free text.
+    schema = grade_schema(["patch_targets", "tools_called"])
+
+    assert _criterion_enum(schema) == ["patch_targets", "tools_called"]
+
+
+def test_grade_sends_the_schema_built_from_that_cases_rubric():
+    # Per-case, not module-level: two cases with different rubrics must not
+    # share one enum, or each grader could name the other case's criteria.
+    case = load_cases()[0]
+    payload = {
+        "overall": 5,
+        "verdicts": [],
+        "summary": "s",
+        "suggested_rubric_gaps": [],
+    }
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _mock_response(payload)
+
+    with patch("anthropic.Anthropic", return_value=mock_client):
+        ClaudeGrader().grade(case, trace=_FakeTrace(), diff="")
+
+    sent = mock_client.messages.create.call_args.kwargs["output_config"]["format"]["schema"]
+    assert _criterion_enum(sent) == sorted(case.expect)
