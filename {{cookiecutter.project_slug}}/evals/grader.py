@@ -13,15 +13,25 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 GRADER_MODEL = "{{ cookiecutter.agentic_grader_model }}"
 REPORTS_DIR = Path(__file__).parent / "reports"
 
 
+# Scores are 0-5. Expressed as an enum rather than minimum/maximum because the
+# structured-output schema subset rejects numerical constraints outright --
+# `minimum`/`maximum`/`multipleOf` are a 400, while `enum` over numbers is
+# supported. Same range, a keyword the API's validator accepts.
+SCORE_VALUES = [0, 1, 2, 3, 4, 5]
+
+
 class CriterionVerdict(BaseModel):
     criterion: str
-    score: int
+    # Bounded here as well as in the wire schema. The enum constrains what the
+    # grader can generate; this catches a hand-built or replayed verdict that
+    # never went through the API at all.
+    score: int = Field(ge=0, le=5)
     passed: bool
     feedback: str
 
@@ -29,7 +39,7 @@ class CriterionVerdict(BaseModel):
 class GradeReport(BaseModel):
     case_id: str
     model: str
-    overall: int
+    overall: int = Field(ge=0, le=5)
     verdicts: list[CriterionVerdict]
     summary: str
     suggested_rubric_gaps: list[str] = []
@@ -38,14 +48,14 @@ class GradeReport(BaseModel):
 GRADE_SCHEMA = {
     "type": "object",
     "properties": {
-        "overall": {"type": "integer", "minimum": 0, "maximum": 5},
+        "overall": {"type": "integer", "enum": SCORE_VALUES},
         "verdicts": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "criterion": {"type": "string"},
-                    "score": {"type": "integer", "minimum": 0, "maximum": 5},
+                    "score": {"type": "integer", "enum": SCORE_VALUES},
                     "passed": {"type": "boolean"},
                     "feedback": {"type": "string"},
                 },

@@ -2,7 +2,10 @@ import json
 from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from evals.grader import (
+    GRADE_SCHEMA,
     GRADER_MODEL,
     ClaudeGrader,
     CriterionVerdict,
@@ -12,6 +15,80 @@ from evals.grader import (
     write_report,
 )
 from evals.harness import load_cases
+from {{ cookiecutter.project_slug }}.agentic.runner import DIAGNOSIS_SCHEMA
+
+# Keywords the structured-output schema subset rejects outright: numerical and
+# string constraints, and array constraints beyond minItems 0/1. Sending one is
+# a 400 before the model is ever consulted.
+#
+# This test exists because every other test of the grader mocks the client, so
+# the schema is never seen by the API's validator -- GRADE_SCHEMA shipped with
+# `minimum`/`maximum` on its integer scores and stayed green until someone ran
+# `-m graded`, which needs a key and is deselected by default. Express a bounded
+# integer as an `enum` of its allowed values instead; that keyword is supported.
+UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
+    {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "maxItems",
+        "uniqueItems",
+    }
+)
+
+
+def _schema_keywords(schema) -> set[str]:
+    """Every schema keyword appearing anywhere in a nested JSON Schema.
+
+    Descends into the *values* under `properties` but never collects its keys:
+    those are field names, so a field legitimately called "maximum" must not
+    read as the constraint keyword of the same name.
+    """
+    found: set[str] = set()
+    if not isinstance(schema, dict):
+        return found
+    for key, value in schema.items():
+        found.add(key)
+        if key == "properties" and isinstance(value, dict):
+            for subschema in value.values():
+                found |= _schema_keywords(subschema)
+        elif isinstance(value, dict):
+            found |= _schema_keywords(value)
+        elif isinstance(value, list):
+            for item in value:
+                found |= _schema_keywords(item)
+    return found
+
+
+@pytest.mark.parametrize(
+    ("name", "schema"),
+    [("GRADE_SCHEMA", GRADE_SCHEMA), ("DIAGNOSIS_SCHEMA", DIAGNOSIS_SCHEMA)],
+)
+def test_output_schemas_use_only_supported_keywords(name, schema):
+    assert not _schema_keywords(schema) & UNSUPPORTED_SCHEMA_KEYWORDS
+
+
+def test_the_keyword_walker_would_actually_catch_a_bad_schema():
+    # Guard the guard: a walker that silently returned nothing would make the
+    # test above pass on every schema, including the one that caused the 400.
+    bad = {
+        "type": "object",
+        "properties": {"score": {"type": "integer", "minimum": 0, "maximum": 5}},
+    }
+
+    assert _schema_keywords(bad) & UNSUPPORTED_SCHEMA_KEYWORDS == {"minimum", "maximum"}
+
+
+def test_a_field_named_like_a_constraint_is_not_mistaken_for_one():
+    # `properties` keys are field names. A rubric criterion called "maximum"
+    # is not the `maximum` keyword, and must not trip the check.
+    fine = {"type": "object", "properties": {"maximum": {"type": "string"}}}
+
+    assert not _schema_keywords(fine) & UNSUPPORTED_SCHEMA_KEYWORDS
 
 
 def _report() -> GradeReport:
