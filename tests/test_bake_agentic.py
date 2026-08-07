@@ -260,10 +260,27 @@ def test_compose_init_chowns_artifacts_only_when_agentic_enabled(cookies):
         compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
         services = compose["services"]
 
-        assert services["airflow-init"]["command"] == [
-            "-c",
-            f'mkdir -p {dirs} && chown -R "${{AIRFLOW_UID:-50000}}:0" {dirs}',
-        ]
+        flag, script = services["airflow-init"]["command"]
+        assert flag == "-c"
+        assert f"mkdir -p {dirs}" in script
+        assert f'chown -R "${{AIRFLOW_UID:-50000}}:0" {dirs}' in script
+        assert f"for dir in {dirs}; do" in script
+
+        # The chown must not be able to fail the service by itself. Docker
+        # backed by a VM -- colima, Docker Desktop, Rancher, OrbStack -- shares
+        # host directories through a filesystem that denies chown even to root,
+        # and does not need it, because the share already presents its files as
+        # writable to the container user. Chaining the two with `&&` took the
+        # whole stack down on every one of those for a no-op:
+        #   service "airflow-init" didn't complete successfully: exit 1
+        assert "&& chown" not in script
+        assert "|| echo" in script
+
+        # What decides is the probe, and it has to run as the airflow uid.
+        # Root can write anywhere, so a root probe would pass on exactly the
+        # unwritable mount this exists to catch.
+        assert 'setpriv --reuid="${AIRFLOW_UID:-50000}"' in script
+
         assert services["airflow-standalone"]["user"] == "${AIRFLOW_UID:-50000}:0"
 
 
