@@ -83,6 +83,17 @@ def test_dispatch_tool_routes_to_read_task_log(failure_ctx, tmp_path):
     assert "customer_name" in out
 
 
+def test_dispatch_tool_routes_to_list_repo_files_with_no_arguments(tmp_path):
+    # `subdir` is the one optional argument in the whole tool surface, and it
+    # has to stay optional at the dispatch layer too: an agent that does not
+    # yet know the layout is exactly the caller who cannot name a subdir.
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "dag.py").write_text("x = 1\n")
+    tool_ctx = ToolContext(project_root=tmp_path, log_path=tmp_path / "load.log")
+
+    assert dispatch_tool(tool_ctx, "list_repo_files", {}) == "src/dag.py"
+
+
 def test_dispatch_tool_rejects_an_unknown_tool(tmp_path):
     tool_ctx = ToolContext(project_root=tmp_path, log_path=tmp_path / "load.log")
     with pytest.raises(ToolError, match="unknown tool"):

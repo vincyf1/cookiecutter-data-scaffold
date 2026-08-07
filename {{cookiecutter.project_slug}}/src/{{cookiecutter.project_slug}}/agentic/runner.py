@@ -22,6 +22,7 @@ from {{ cookiecutter.project_slug }}.agentic.tools import (
     ToolContext,
     ToolDefinition,
     ToolError,
+    list_repo_files,
     propose_patch,
     read_repo_file,
     read_task_log,
@@ -117,6 +118,10 @@ def dispatch_tool(tool_ctx: ToolContext, name: str, arguments: dict) -> str:
             task_id=_required(arguments, "task_id", name),
             tail_lines=arguments.get("tail_lines", 200),
         )
+    if name == "list_repo_files":
+        # subdir is optional: an agent that has no idea where to start should
+        # be able to call this with no arguments at all.
+        return list_repo_files(tool_ctx, subdir=arguments.get("subdir", "."))
     if name == "read_repo_file":
         return read_repo_file(tool_ctx, path=_required(arguments, "path", name))
     if name == "propose_patch":

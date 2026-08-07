@@ -1,8 +1,13 @@
-"""The agent's entire capability surface: three tools, no bash, no write.
+"""The agent's entire capability surface: four tools, no bash, no write.
 
 propose_patch uses str_replace semantics but *stages* rather than applies.
 Nothing on disk changes during the agent run, so a bad run costs an unused
 .patch file -- and an eval can score a patch that was never applied.
+
+Three of the four read; only one of them can *find* anything. That is
+deliberate: a FailureContext names a dag_id and a task_id, never a file
+path, so without list_repo_files an agent has nothing to turn the former
+into the latter but guesswork.
 """
 
 import difflib
@@ -13,6 +18,29 @@ from {{ cookiecutter.project_slug }}.agentic.contracts import ProposedEdit
 
 DEFAULT_TAIL_LINES = 200
 DEFAULT_MAX_LOG_CHARS = 20000
+DEFAULT_MAX_ENTRIES = 200
+
+# Directories that are either machine-generated or this Pattern's own output.
+# Listing them buries the handful of files the agent actually needs, and
+# `artifacts`/`traces` would show it the wreckage of previous healing runs.
+SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        "node_modules",
+        "build",
+        "dist",
+        "artifacts",
+        "traces",
+        "logs",
+        "data",
+    }
+)
 
 
 class ToolError(Exception):
@@ -49,6 +77,46 @@ def read_task_log(ctx: ToolContext, task_id: str, tail_lines: int = DEFAULT_TAIL
     if len(text) > ctx.max_log_chars:
         text = text[-ctx.max_log_chars :]
     return text
+
+
+def list_repo_files(
+    ctx: ToolContext, subdir: str = ".", max_entries: int = DEFAULT_MAX_ENTRIES
+) -> str:
+    """List source files under `subdir`, as paths read_repo_file accepts.
+
+    Paths come back relative to the project root, not to `subdir`, so the
+    agent can feed a line of this output straight into read_repo_file
+    without doing path arithmetic on it.
+
+    The containment check is the same one read_repo_file uses, and matters
+    more here: this walks directories, so a symlink out of the tree would
+    disclose host filenames even though the agent could never open them.
+    """
+    root = ctx.project_root.resolve()
+    target = ctx.resolve(subdir)
+    if not target.is_dir():
+        raise ToolError(f"not a directory: {subdir}")
+
+    found: list[str] = []
+    for path in sorted(target.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root)
+        if SKIP_DIRS.intersection(relative.parts[:-1]):
+            continue
+        # rglob follows directory symlinks, so re-check containment per hit
+        # rather than trusting that a walk rooted inside the tree stays there.
+        if not path.resolve().is_relative_to(root):
+            continue
+        found.append(relative.as_posix())
+        if len(found) > max_entries:
+            break
+
+    if not found:
+        return f"no files found under '{subdir}'"
+    if len(found) > max_entries:
+        return "\n".join(found[:max_entries] + [f"... truncated at {max_entries} entries"])
+    return "\n".join(found)
 
 
 def read_repo_file(ctx: ToolContext, path: str) -> str:
@@ -168,6 +236,29 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["task_id"],
+            "additionalProperties": False,
+        },
+    ),
+    ToolDefinition(
+        name="list_repo_files",
+        description=(
+            "List the project's source files, as paths you can pass straight to "
+            "read_repo_file. Call this before reading anything: the failure names a "
+            "DAG id and a task id, never a file path, so this is the only way to "
+            "learn where the code lives. Do not guess filenames."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "subdir": {
+                    "type": "string",
+                    "description": (
+                        "Directory to list, relative to the project root. "
+                        "Defaults to the whole project."
+                    ),
+                }
+            },
+            "required": [],
             "additionalProperties": False,
         },
     ),

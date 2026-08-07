@@ -6,6 +6,7 @@ from {{ cookiecutter.project_slug }}.agentic.tools import (
     ToolContext,
     ToolDefinition,
     ToolError,
+    list_repo_files,
     propose_patch,
     read_repo_file,
     read_task_log,
@@ -139,9 +140,83 @@ def test_render_diff_rejects_a_staged_edit_for_a_missing_file(ctx):
         render_diff(ctx)
 
 
-def test_tool_definitions_expose_exactly_three_tools():
+def test_list_repo_files_returns_paths_read_repo_file_accepts(ctx):
+    # The two tools are a pair: whatever this one prints, the other one has
+    # to be able to open. Anything else and the agent gets a listing it
+    # cannot act on -- which is the failure this tool exists to prevent.
+    listing = list_repo_files(ctx).splitlines()
+
+    assert "src/dag.py" in listing
+    for path in listing:
+        assert read_repo_file(ctx, path) is not None
+
+
+def test_list_repo_files_finds_a_file_no_one_could_have_guessed(ctx):
+    # The regression this tool was added for: the failure context names a
+    # DAG *id*, never a filename, so an agent with only read_repo_file has
+    # to guess the path. The live evals caught it doing exactly that --
+    # seventeen misses, down to casing permutations, then no patch.
+    deep = ctx.project_root / "src" / "pkg" / "batch" / "dags" / "example_dag.py"
+    deep.parent.mkdir(parents=True)
+    deep.write_text("output_setting = 'output_file'\n")
+
+    assert "src/pkg/batch/dags/example_dag.py" in list_repo_files(ctx).splitlines()
+
+
+def test_list_repo_files_scopes_to_a_subdirectory(ctx):
+    (ctx.project_root / "evals").mkdir()
+    (ctx.project_root / "evals" / "noise.py").write_text("x = 1\n")
+
+    listing = list_repo_files(ctx, subdir="src").splitlines()
+
+    assert listing == ["src/dag.py"]
+
+
+@pytest.mark.parametrize("bad", ["../..", "/etc", "src/../../etc"])
+def test_list_repo_files_rejects_paths_outside_the_root(ctx, bad):
+    with pytest.raises(ToolError, match="outside the project root"):
+        list_repo_files(ctx, subdir=bad)
+
+
+def test_list_repo_files_rejects_a_file_as_a_subdir(ctx):
+    with pytest.raises(ToolError, match="not a directory"):
+        list_repo_files(ctx, subdir="src/dag.py")
+
+
+def test_list_repo_files_skips_noise_directories(ctx):
+    for noisy in (".git", "__pycache__", ".venv", "artifacts", "traces"):
+        directory = ctx.project_root / noisy
+        directory.mkdir()
+        (directory / "junk.py").write_text("x = 1\n")
+
+    listing = list_repo_files(ctx).splitlines()
+
+    assert "src/dag.py" in listing
+    assert [path for path in listing if "junk.py" in path] == []
+
+
+def test_list_repo_files_says_so_when_it_truncates(ctx):
+    # A silently truncated listing reads as "this is the whole repo", which
+    # would send the agent back to guessing for anything below the cut.
+    for index in range(60):
+        (ctx.project_root / f"file_{index:03d}.py").write_text("x = 1\n")
+
+    listing = list_repo_files(ctx, max_entries=25)
+
+    assert len(listing.splitlines()) == 26
+    assert listing.splitlines()[-1] == "... truncated at 25 entries"
+
+
+def test_list_repo_files_reports_an_empty_directory_rather_than_nothing(ctx):
+    (ctx.project_root / "empty").mkdir()
+
+    assert list_repo_files(ctx, subdir="empty") == "no files found under 'empty'"
+
+
+def test_tool_definitions_expose_exactly_four_tools():
     assert {definition.name for definition in TOOL_DEFINITIONS} == {
         "read_task_log",
+        "list_repo_files",
         "read_repo_file",
         "propose_patch",
     }

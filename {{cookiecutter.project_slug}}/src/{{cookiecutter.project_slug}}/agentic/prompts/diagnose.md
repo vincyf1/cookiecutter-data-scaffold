@@ -4,9 +4,13 @@ Work in this order:
 
 1. Call `read_task_log` to read the failing task's log. The exception message
    names the specific problem.
-2. Call `read_repo_file` to read the source that produced the bad data, and the
+2. Call `list_repo_files` to find out where the code lives. You are given a DAG
+   id and a task id, never a file path, and the two rarely match: a DAG called
+   `example_events_dag` may well be defined in `example_dag.py`. Never guess a
+   path -- list first, then read what the listing actually shows you.
+3. Call `read_repo_file` to read the source that produced the bad data, and the
    schema definition it violated. Do not guess at file contents.
-3. Call `propose_patch` with the smallest change that fixes the root cause.
+4. Call `propose_patch` with the smallest change that fixes the root cause.
 
 Rules:
 
