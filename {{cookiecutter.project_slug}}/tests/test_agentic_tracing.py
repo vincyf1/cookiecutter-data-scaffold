@@ -102,7 +102,7 @@ def test_duckdb_sink_stores_one_row_per_failure_event(tmp_path):
 
     from {{ cookiecutter.project_slug }}.agentic.tracing import DuckDBSink
 
-    db_path = str(tmp_path / "lakehouse.duckdb")
+    db_path = str(tmp_path / "traces.duckdb")
     rec = _recorder()
     with rec.element("tool_call", "read_task_log"):
         pass
@@ -130,7 +130,7 @@ def test_both_sinks_persist_identical_documents(tmp_path):
     trace = rec.finish("ok")
 
     JsonlSink(tmp_path).write(trace)
-    db_path = str(tmp_path / "lakehouse.duckdb")
+    db_path = str(tmp_path / "traces.duckdb")
     DuckDBSink(db_path).write(trace)
 
     from_jsonl = (tmp_path / f"{trace.trace_id}.json").read_text()
@@ -138,4 +138,45 @@ def test_both_sinks_persist_identical_documents(tmp_path):
     from_duckdb = con.execute("SELECT elements FROM agent_traces").fetchone()[0]
 
     assert json.loads(from_jsonl) == json.loads(from_duckdb)
+
+
+def test_default_sink_keeps_traces_out_of_the_pipelines_database(tmp_path):
+    # DuckDB takes an exclusive lock per file and Airflow runs each task in its
+    # own process, so a trace sink aimed at the events database contends with
+    # the very pipeline it records. In the Docker demo that surfaced as the
+    # `load` task dying on "Conflicting lock is held in airflow worker (PID
+    # 145)" before it could raise the schema-drift error the demo exists to
+    # show -- the healing agent then correctly diagnosed a concurrency bug
+    # rather than the scripted one.
+    from pathlib import Path
+
+    from {{ cookiecutter.project_slug }}.agentic.tracing import DuckDBSink, default_sink
+
+    sink = default_sink(tmp_path)
+
+    assert isinstance(sink, DuckDBSink)
+    assert Path(sink.db_path).name != "lakehouse.duckdb"
+    assert Path(sink.db_path).is_relative_to(tmp_path)
+
+
+def test_default_sink_creates_its_directory_on_first_write(tmp_path):
+    # default_sink resolves against project_root, which on a fresh checkout may
+    # not have the directory yet -- and duckdb.connect does not create parents,
+    # it raises. write_trace_safely would swallow that as silent trace loss.
+    from pathlib import Path
+
+    import duckdb
+
+    from {{ cookiecutter.project_slug }}.agentic.tracing import default_sink
+
+    sink = default_sink(tmp_path)
+    assert not Path(sink.db_path).parent.exists()
+
+    rec = _recorder()
+    with rec.element("tool_call", "read_task_log"):
+        pass
+    sink.write(rec.finish("ok"))
+
+    con = duckdb.connect(str(sink.db_path))
+    assert con.execute("SELECT count(*) FROM agent_traces").fetchone()[0] == 1
 {%- endif %}

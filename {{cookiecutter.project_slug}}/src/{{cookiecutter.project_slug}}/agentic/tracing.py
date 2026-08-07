@@ -167,17 +167,37 @@ class JsonlSink:
 
 DDL_PATH = Path(__file__).parent / "create_traces_table.sql"
 
+# Traces get their own database file, not the pipeline's.
+#
+# DuckDB takes an exclusive lock per file and Airflow runs each task in its own
+# process, so a sink pointed at the events database contends with the very
+# pipeline it is recording. That is not theoretical: in the Docker demo the
+# `load` task died with
+#
+#   IOException: Conflicting lock is held in airflow worker (PID 145)
+#
+# before it could raise the schema-drift error the demo exists to show. A
+# tracing layer that can take down the task it traces is not worth the join
+# convenience -- and the join is still one line away:
+#
+#   ATTACH 'artifacts/traces.duckdb' AS traces;
+#   SELECT * FROM traces.agent_traces;
+TRACE_DB = Path("artifacts") / "traces.duckdb"
+
 
 class DuckDBSink:
     """One row per failure event; the element array lands in a JSON column."""
 
-    def __init__(self, db_path: str = "lakehouse.duckdb") -> None:
+    def __init__(self, db_path: str | Path = TRACE_DB) -> None:
         self.db_path = db_path
 
     def write(self, trace: Trace) -> None:
         import duckdb
 
-        con = duckdb.connect(self.db_path)
+        # The demo's artifacts/ exists, but a caller can point this anywhere,
+        # and duckdb.connect will not create a missing parent for us.
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        con = duckdb.connect(str(self.db_path))
         try:
             con.execute(DDL_PATH.read_text())
             con.execute(
@@ -201,10 +221,10 @@ class DuckDBSink:
 
 
 def default_sink(project_root: Path) -> TraceSink:
-    # project_root is unused here on purpose: traces land in the same DuckDB
-    # file as the events table, whose path this Pattern does not own.
-    del project_root
-    return DuckDBSink()
+    # project_root is load-bearing now that the trace database is this
+    # Pattern's own file: resolving against it means the sink lands in the
+    # same place whatever directory the Airflow task happens to run from.
+    return DuckDBSink(Path(project_root) / TRACE_DB)
 
 {%- else %}
 
