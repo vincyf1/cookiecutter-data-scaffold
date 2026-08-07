@@ -777,6 +777,50 @@ ls artifacts/*.json           <span class="cmt"># proposed PR title, body, confi
 git apply --check artifacts/*.patch   <span class="cmt"># the patch actually applies</span>
 ls -l logs/                   <span class="cmt"># owned by you, not by 50000</span></code></pre>
           </div>
+
+          <div class="note warn">
+            <span class="note-label">A bug this gate found: the stack would not start at all</span>
+            <p>
+              On a macOS host running colima, <code>airflow-init</code> exited 1 with
+              <em>chown: changing ownership of &lsquo;/sources/logs&rsquo;: Permission
+              denied</em>, and <code>airflow-standalone</code> never started because it depends
+              on init via <code>service_completed_successfully</code>. Init already ran as root,
+              so this was not a missing privilege &mdash; root was being refused.
+            </p>
+            <p>
+              Docker backed by a VM (colima, Docker Desktop, Rancher, OrbStack) shares host
+              directories through a filesystem that denies <code>chown</code> to everyone
+              including root, and does not need it: the share already presents its files as
+              writable to the container user whatever uid it runs as. Confirmed on the failing
+              host, where a container running as <code>501:0</code> wrote to the mount happily
+              while root could not chown it. The command chained
+              <code>mkdir &amp;&amp; chown</code>, so a refusal that changed nothing was fatal.
+            </p>
+            <p>
+              The chown is now best-effort and a writability probe decides. The probe runs under
+              <code>setpriv --reuid</code> as the uid airflow will actually use, never as root
+              &mdash; a root probe passes on precisely the unwritable mount it exists to catch,
+              trading a loud false failure for a silent false pass. Both outcomes were checked on
+              a real filesystem rather than on the VM share, whose permissions are virtualised
+              away: a root-owned 755 directory probed as uid 12345 exits 1 with the FATAL
+              message, and the same directory after a successful chown exits 0.
+            </p>
+          </div>
+
+          <div class="note">
+            <span class="note-label">Verified on this host &mdash; up to the trigger</span>
+            <p>
+              <code>airflow-init</code> exits 0 with a note that chown was declined; the stack
+              comes up; <code>curl localhost:8080</code> returns <b>HTTP 200</b>;
+              <code>example_events_dag</code> registers from <code>example_dag.py</code> with no
+              import errors; and the container&rsquo;s logs appear on the host owned by
+              <code>501:20</code> rather than 50000, which is what the mount is for.
+            </p>
+            <p>
+              The DagRun itself is still yours to make: the healing task calls the API and needs
+              a key. That is the only reason this gate is not marked Verified.
+            </p>
+          </div>
         </div>
         <div class="gate-pass">
           <b>Pass</b><code>load</code> ends <em>failed</em>, <code>heal_on_failure</code> ends
@@ -903,17 +947,18 @@ ls evals/reports/             <span class="cmt"># timestamped .md and .json per 
           </thead>
           <tbody>
             <tr><td>00&ndash;08</td><td><span class="pill pass">Verified</span></td><td>No &mdash; all pass</td></tr>
-            <tr><td>09 &middot; Docker demo</td><td><span class="pill manual">Operator</span></td><td>Yes &mdash; nothing else exercises the real container</td></tr>
+            <tr><td>09 &middot; Docker demo</td><td><span class="pill manual">Operator</span></td><td>Only the trigger remains &mdash; the stack itself is verified, and starting it was broken until now</td></tr>
             <tr><td>10 &middot; live agent</td><td><span class="pill manual">Operator</span></td><td>No &mdash; it never gated CI by design</td></tr>
             <tr><td>11 &middot; graded evals</td><td><span class="pill pass">Verified</span></td><td>No &mdash; passes; found two grader bugs on the way</td></tr>
           </tbody>
         </table>
       </div>
       <p>
-        The recommendation: run gate 09 on a Linux host before merging, because it is the only
-        gate that proves the bind-mount fix on the platform where the bug exists. Gate 06 was
-        blocked and is now fixed at its source rather than worked around. Gate 10 is worth one
-        re-run for completeness, though gate 11 already drives the same live loop.
+        The recommendation: trigger a DagRun to finish gate 09. Its stack is now verified to
+        start &mdash; which it did not, on a VM-backed Docker, until the chown was made
+        best-effort &mdash; so what remains is the healing run itself, which needs a key. Gate 06
+        was blocked and is now fixed at its source rather than worked around. Gate 10 is worth
+        one re-run for completeness, though gate 11 already drives the same live loop.
       </p>
 
       <div class="note">
