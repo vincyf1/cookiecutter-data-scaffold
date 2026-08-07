@@ -52,10 +52,12 @@ def _body(trace_id: str, result: AgentResult, render_error: str | None = None) -
     if render_error:
         lines += [
             "",
-            "**Patch could not be rendered.** The agent staged edit(s) above, but "
-            "turning them into a diff failed, so no `.patch` file was produced. "
-            "This is different from the agent choosing not to edit anything -- "
-            "something changed on disk between staging and publishing.",
+            (
+                "**Patch could not be rendered.** The agent staged edit(s) above, but "
+                "turning them into a diff failed, so no `.patch` file was produced. "
+                "This is different from the agent choosing not to edit anything -- "
+                "something changed on disk between staging and publishing."
+            ),
             f"**Render error:** {render_error}",
         ]
     lines += ["", f"Trace id: `{trace_id}`"]
@@ -188,10 +190,18 @@ class GitHubPublisher:
                 "--body", local.body,
             )
         except Exception:
+            # check=False on purpose: this is best-effort cleanup on the way to
+            # re-raising. A failing checkout or branch delete must not replace the
+            # original error with a CalledProcessError about the rollback.
             subprocess.run(
-                ["git", "checkout", original_branch], cwd=root, capture_output=True
+                ["git", "checkout", original_branch],
+                cwd=root,
+                capture_output=True,
+                check=False,
             )
-            subprocess.run(["git", "branch", "-D", branch], cwd=root, capture_output=True)
+            subprocess.run(
+                ["git", "branch", "-D", branch], cwd=root, capture_output=True, check=False
+            )
             raise
 
         local.url = created.stdout.strip()

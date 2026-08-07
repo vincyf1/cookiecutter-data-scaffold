@@ -9,7 +9,7 @@ infrastructure -- the healing DAG never imports it.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -170,7 +170,7 @@ def write_report(
     report: GradeReport, reports_dir: Path = REPORTS_DIR, timestamp: str | None = None
 ) -> Path:
     """Feedback that only appears in pytest output gets ignored."""
-    stamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = timestamp or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     reports_dir = Path(reports_dir)
     reports_dir.mkdir(parents=True, exist_ok=True)
     json_path = reports_dir / f"{report.case_id}-{stamp}.json"

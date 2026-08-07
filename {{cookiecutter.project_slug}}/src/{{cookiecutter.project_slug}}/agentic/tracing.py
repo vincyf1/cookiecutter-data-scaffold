@@ -9,7 +9,7 @@ that is why `seq` replaces a parent/child span tree.
 import logging
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -25,7 +25,7 @@ SUMMARY_MAX_CHARS = 2000
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _iso(moment: datetime) -> str:
@@ -182,7 +182,8 @@ class DuckDBSink:
             con.execute(DDL_PATH.read_text())
             con.execute(
                 "INSERT OR REPLACE INTO agent_traces "
-                "(trace_id, dag_id, dag_run_id, task_id, try_number, occurred_at, status, elements) "
+                "(trace_id, dag_id, dag_run_id, task_id, try_number, "
+                "occurred_at, status, elements) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     trace.trace_id,
@@ -225,6 +226,6 @@ def write_trace_safely(sink: TraceSink, trace: Trace) -> bool:
     try:
         sink.write(trace)
         return True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - breadth is the point; see docstring
         logger.warning("failed to persist agent trace %s: %s", trace.trace_id, exc)
         return False

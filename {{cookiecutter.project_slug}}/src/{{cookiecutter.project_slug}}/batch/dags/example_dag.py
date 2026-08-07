@@ -1,16 +1,17 @@
 from datetime import UTC, datetime
 
 from airflow.sdk import Param, dag, task
-
-from {{ cookiecutter.project_slug }}.batch.sinks import write_events
 {%- if cookiecutter.include_agentic %}
 from airflow.task.trigger_rule import TriggerRule
+{%- endif %}
 
+{% if cookiecutter.include_agentic -%}
 from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import (
     heal_on_failure,
     record_failure,
 )
-{%- endif %}
+{% endif -%}
+from {{ cookiecutter.project_slug }}.batch.sinks import write_events
 
 {%- if cookiecutter.include_lakehouse %}
 

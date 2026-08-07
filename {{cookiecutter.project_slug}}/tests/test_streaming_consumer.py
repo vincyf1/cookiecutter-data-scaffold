@@ -1,3 +1,4 @@
+import contextlib
 from unittest.mock import MagicMock, patch
 
 from {{ cookiecutter.project_slug }}.streaming.consumer import handle_message, run
@@ -22,10 +23,10 @@ def test_run_skips_malformed_message_without_crashing(mock_consumer_cls, mock_wr
     mock_consumer = mock_consumer_cls.return_value
     mock_consumer.poll.side_effect = [bad_msg, good_msg, StopIteration()]
 
-    try:
+    # StopIteration is how the mocked poll() ends the otherwise-infinite loop,
+    # so it is the expected exit, not a failure.
+    with contextlib.suppress(StopIteration):
         run()
-    except StopIteration:
-        pass
 
     mock_write_events.assert_called_once_with([{"id": 2, "name": "ok"}])
     mock_consumer.close.assert_called_once()

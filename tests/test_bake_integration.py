@@ -1,5 +1,4 @@
 import pytest
-
 from conftest import bake_with, lint_project, run_cmd
 
 
@@ -51,7 +50,9 @@ def test_dbt_sources_absent_when_lakehouse_disabled(cookies):
 
 def test_docker_compose_has_airflow_service_only_when_batch_enabled(cookies):
     with_batch = bake_with(cookies, include_batch=True, include_streaming=False)
-    without_batch = bake_with(cookies, include_batch=False, include_streaming=False, include_agentic=False)
+    without_batch = bake_with(
+        cookies, include_batch=False, include_streaming=False, include_agentic=False
+    )
 
     with_batch_compose = (with_batch.project_path / "docker-compose.yml").read_text()
     without_batch_compose = (without_batch.project_path / "docker-compose.yml").read_text()
@@ -235,7 +236,10 @@ def test_docker_compose_is_valid_yaml_for_all_batch_streaming_combinations(
     import yaml
 
     result = bake_with(
-        cookies, include_batch=include_batch, include_streaming=include_streaming, include_agentic=include_batch
+        cookies,
+        include_batch=include_batch,
+        include_streaming=include_streaming,
+        include_agentic=include_batch,
     )
     compose = yaml.safe_load((result.project_path / "docker-compose.yml").read_text())
     assert isinstance(compose["services"], dict)
@@ -281,8 +285,7 @@ def test_docker_compose_pip_requirements_for_all_lakehouse_agentic_combinations(
 def test_agentic_bake_lints_clean(cookies):
     result = bake_with(cookies, include_agentic=True, include_batch=True)
     assert result.exit_code == 0
-    # Pinned ruff, not a bare `uvx ruff` -- see RUFF_VERSION's docstring in
-    # conftest.py: an unpinned invocation resolves to whatever ruff released
-    # most recently, so a new default rule turns this red with no change on
-    # our side.
+    # Pinned ruff, but pinned *forward* -- see RUFF_VERSION in conftest.py.
+    # A pin below what the generated project resolves lets this pass while
+    # real bakes fail.
     lint_project(result.project_path)

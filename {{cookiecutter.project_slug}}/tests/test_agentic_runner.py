@@ -70,7 +70,7 @@ def test_model_kwargs_returns_independent_copies_of_nested_dicts():
     second = _model_kwargs("claude-opus-5")
 
     assert second == {"output_config": {"effort": "medium"}}
-    assert _MODEL_PARAMS == before
+    assert before == _MODEL_PARAMS
 
 
 def test_default_model_comes_from_the_cookiecutter_variable():

@@ -115,7 +115,7 @@ def list_repo_files(
     if not found:
         return f"no files found under '{subdir}'"
     if len(found) > max_entries:
-        return "\n".join(found[:max_entries] + [f"... truncated at {max_entries} entries"])
+        return "\n".join([*found[:max_entries], f"... truncated at {max_entries} entries"])
     return "\n".join(found)
 
 

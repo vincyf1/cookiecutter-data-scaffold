@@ -42,6 +42,15 @@ packages = ["src/{{ cookiecutter.project_slug }}"]
 target-version = "py312"
 line-length = 100
 src = ["src"]
+
+# Selected explicitly, on purpose. With no `select`, the enabled rule set is
+# whatever the installed ruff defaults to -- and that default has grown by an
+# order of magnitude across releases. Since `ruff>=0.6` floats and there is no
+# lockfile, an unselected config means `ruff check .` can start failing on a
+# project nobody touched, purely because a new ruff resolved. Pin the rules,
+# not the tool.
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "ISC", "BLE", "PLE", "PLW", "RUF"]
 {%- if cookiecutter.include_agentic %}
 
 [tool.pytest.ini_options]

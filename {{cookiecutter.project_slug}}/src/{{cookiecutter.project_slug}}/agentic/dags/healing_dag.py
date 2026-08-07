@@ -95,7 +95,7 @@ def _log_settings() -> tuple[Path, str | None]:
         return Path(conf.get("logging", "base_log_folder")), conf.get(
             "logging", "log_filename_template"
         )
-    except Exception:  # pragma: no cover - only if Airflow config is unreadable
+    except Exception:  # noqa: BLE001 # pragma: no cover - any config read failure falls back
         home = os.environ.get("AIRFLOW_HOME") or str(Path.home() / "airflow")
         return Path(home) / "logs", None
 

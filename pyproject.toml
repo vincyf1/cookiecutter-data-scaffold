@@ -20,6 +20,13 @@ target-version = "py312"
 line-length = 100
 extend-exclude = ["hooks", "\\{\\{cookiecutter.project_slug\\}\\}"]
 
+# Same reasoning as the generated project's config: with no `select`, the rule
+# set is whatever the installed ruff defaults to, and that default has grown
+# substantially across releases. Keep this list in sync with the one in
+# {{cookiecutter.project_slug}}/pyproject.toml.
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "ISC", "BLE", "PLE", "PLW", "RUF"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

@@ -235,7 +235,7 @@ def test_run_healing_survives_a_failing_trace_sink(project, failure_ctx, runner,
         def write(self, trace):
             raise RuntimeError("table agent_traces does not exist")
 
-    trace, published = run_healing(
+    _trace, published = run_healing(
         failure_ctx,
         runner=runner,
         sink=ExplodingSink(),

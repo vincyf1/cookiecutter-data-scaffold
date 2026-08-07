@@ -1,12 +1,13 @@
 import json
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 from evals.grader import (
     GRADER_MODEL,
+    ClaudeGrader,
     CriterionVerdict,
     FakeGrader,
     GradeReport,
-    ClaudeGrader,
     render_markdown,
     write_report,
 )
@@ -85,7 +86,9 @@ def test_render_markdown_marks_a_failed_criterion_as_fail():
 
 
 class _FakeTrace:
-    elements: list = []
+    # ClassVar, not a bare `list = []`: a mutable class attribute is shared by
+    # every instance, so one test appending to it would leak into the next.
+    elements: ClassVar[list] = []
 
 
 def _mock_response(payload: dict):

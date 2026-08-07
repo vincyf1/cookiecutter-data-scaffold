@@ -267,12 +267,12 @@ class ClaudeRunner:
                 model=self.model,
                 max_tokens=1024,
                 system=SYSTEM_PROMPT,
-                messages=messages
-                + [
+                messages=[
+                    *messages,
                     {
                         "role": "user",
                         "content": "Return your final diagnosis in the required schema.",
-                    }
+                    },
                 ],
                 output_config=output_config,
                 **model_kwargs,

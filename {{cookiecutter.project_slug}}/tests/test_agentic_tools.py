@@ -128,7 +128,7 @@ def test_render_diff_raises_if_a_staged_edit_cannot_be_applied(ctx):
             rationale="bogus",
         )
     )
-    with pytest.raises(ToolError, match="src/dag.py"):
+    with pytest.raises(ToolError, match=r"src/dag\.py"):
         render_diff(ctx)
 
 

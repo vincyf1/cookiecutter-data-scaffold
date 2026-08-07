@@ -15,7 +15,6 @@ from pathlib import Path
 
 from evals.harness import load_cases, score_case
 from evals.replay import ReplayRunner
-
 from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import run_healing
 from {{ cookiecutter.project_slug }}.agentic.publisher import LocalPatchPublisher
 from {{ cookiecutter.project_slug }}.agentic.tracing import JsonlSink

@@ -47,9 +47,8 @@ def test_recorder_records_duration_and_ok_status():
 def test_recorder_marks_a_raising_element_as_error_and_reraises():
     rec = _recorder()
 
-    with pytest.raises(ValueError):
-        with rec.element("tool_call", "read_repo_file"):
-            raise ValueError("path escapes project root")
+    with pytest.raises(ValueError), rec.element("tool_call", "read_repo_file"):
+        raise ValueError("path escapes project root")
 
     trace = rec.finish("error")
 

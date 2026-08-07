@@ -1,6 +1,7 @@
 """Shared write_events sink used by the Batch and Streaming patterns."""
 {%- if cookiecutter.include_lakehouse %}
-from {{ cookiecutter.project_slug }}.lakehouse.writer import get_connection, write_events as _write_to_lakehouse
+from {{ cookiecutter.project_slug }}.lakehouse.writer import get_connection
+from {{ cookiecutter.project_slug }}.lakehouse.writer import write_events as _write_to_lakehouse
 
 
 def write_events(records: list[dict]) -> None:

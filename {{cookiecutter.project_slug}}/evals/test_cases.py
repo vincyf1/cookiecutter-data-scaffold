@@ -6,7 +6,6 @@ import pytest
 from evals.grader import GRADER_MODEL, ClaudeGrader, write_report
 from evals.harness import EvalCase, load_cases, patch_text, score_case
 from evals.replay import ReplayRunner, cassette_for
-
 from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import run_healing
 from {{ cookiecutter.project_slug }}.agentic.publisher import LocalPatchPublisher
 from {{ cookiecutter.project_slug }}.agentic.runner import ClaudeRunner

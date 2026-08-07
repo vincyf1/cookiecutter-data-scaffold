@@ -3,7 +3,6 @@ import os
 import subprocess
 
 import pytest
-
 from conftest import bake_with
 
 
@@ -430,7 +429,8 @@ CAPTURE.write_text(json.dumps(captured, indent=2))
 
 
 def _run(cwd, *args, env=None):
-    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, env=env)
+    # check=False, then assert -- see conftest.run_cmd for why.
+    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, env=env, check=False)
     assert result.returncode == 0, result.stdout + result.stderr
     return result
 
