@@ -229,3 +229,10 @@ def test_docker_compose_is_valid_yaml_for_all_batch_streaming_combinations(
     assert ("airflow-standalone" in compose["services"]) == include_batch
     assert ("kafka" in compose["services"]) == include_streaming
 
+
+@pytest.mark.slow
+def test_default_bake_generated_tests_pass(cookies):
+    result = bake_with(cookies)
+    assert result.exit_code == 0
+    run_cmd(result.project_path, "uv", "sync")
+    run_cmd(result.project_path, "uv", "run", "pytest", "-v")

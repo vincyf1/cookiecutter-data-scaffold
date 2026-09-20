@@ -5,7 +5,9 @@ description = "{{ cookiecutter.project_name }}"
 authors = [{ name = "{{ cookiecutter.author_name }}" }]
 requires-python = ">=3.12"
 dependencies = [
+{%- if (cookiecutter.include_batch or cookiecutter.include_streaming) and not cookiecutter.include_lakehouse %}
     "pyarrow>=17.0",
+{%- endif %}
 {%- if cookiecutter.include_lakehouse %}
     "duckdb>=1.0",
 {%- endif %}
