@@ -82,6 +82,10 @@ COMPOUND_REMOVALS = [
     ({{ cookiecutter.include_batch or cookiecutter.include_streaming }}, [
         f"src/{SLUG}/sinks.py",
     ]),
+    ({{ cookiecutter.include_batch or cookiecutter.include_streaming or cookiecutter.include_lakehouse }}, [
+        f"src/{SLUG}/events.py",
+        "tests/test_events.py",
+    ]),
 ]
 
 
