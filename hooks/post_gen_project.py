@@ -24,6 +24,7 @@ PATTERNS = [
             "tests/test_batch_dag.py",
         ],
         "gated": [
+            "README.md",
             "docker-compose.yml",
             "pyproject.toml",
         ],
@@ -36,6 +37,7 @@ PATTERNS = [
             "tests/test_streaming_consumer.py",
         ],
         "gated": [
+            "README.md",
             "docker-compose.yml",
             "pyproject.toml",
         ],
@@ -49,6 +51,7 @@ PATTERNS = [
             "transformation/models/staging/sources.yml",
         ],
         "gated": [
+            "README.md",
             "docker-compose.yml",
             "pyproject.toml",
             "tests/test_parquet_sink.py",
