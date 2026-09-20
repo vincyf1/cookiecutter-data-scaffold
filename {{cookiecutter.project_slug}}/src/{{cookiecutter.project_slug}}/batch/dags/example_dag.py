@@ -1,11 +1,19 @@
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
 
 from airflow.sdk import dag, task
 
-from {{ cookiecutter.project_slug }}.batch.sinks import write_events
+from {{ cookiecutter.project_slug }}.events import Event
+from {{ cookiecutter.project_slug }}.sinks import create_event_sink
+{% if cookiecutter.include_lakehouse %}
+DEFAULT_DESTINATION = Path("lakehouse.duckdb")
+{%- else %}
+DEFAULT_DESTINATION = Path("data/events/batch")
+{%- endif %}
 
 
-@dag(schedule="@daily", start_date=datetime(2024, 1, 1), catchup=False)
+
+@dag(schedule="@daily", start_date=datetime(2024, 1, 1, tzinfo=UTC), catchup=False)
 def example_events_dag():
     @task
     def extract() -> list[dict]:
@@ -13,7 +21,9 @@ def example_events_dag():
 
     @task
     def load(records: list[dict]) -> None:
-        write_events(records)
+        events = [Event.from_mapping(record) for record in records]
+        with create_event_sink(DEFAULT_DESTINATION) as sink:
+            sink.write(events)
 
     load(extract())
 

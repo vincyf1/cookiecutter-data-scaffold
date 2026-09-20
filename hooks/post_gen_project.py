@@ -34,7 +34,6 @@ PATTERNS = [
         "remove": [
             f"src/{SLUG}/streaming",
             "tests/test_streaming_consumer.py",
-            "tests/test_streaming_sinks.py",
         ],
         "gated": [
             "docker-compose.yml",
@@ -52,10 +51,11 @@ PATTERNS = [
         "gated": [
             "docker-compose.yml",
             "pyproject.toml",
+            "tests/test_parquet_sink.py",
+            "tests/test_batch_dag.py",
             f"src/{SLUG}/sinks.py",
-            f"src/{SLUG}/batch/sinks.py",
-            f"src/{SLUG}/streaming/sinks.py",
-            "tests/test_streaming_sinks.py",
+            f"src/{SLUG}/batch/dags/example_dag.py",
+            f"src/{SLUG}/streaming/consumer.py",
             "transformation/dbt_project.yml",
             "transformation/models/staging/stg_events.sql",
             "transformation/profiles.yml",
@@ -81,6 +81,7 @@ PATTERNS = [
 COMPOUND_REMOVALS = [
     ({{ cookiecutter.include_batch or cookiecutter.include_streaming }}, [
         f"src/{SLUG}/sinks.py",
+        "tests/test_parquet_sink.py",
     ]),
     ({{ cookiecutter.include_batch or cookiecutter.include_streaming or cookiecutter.include_lakehouse }}, [
         f"src/{SLUG}/events.py",

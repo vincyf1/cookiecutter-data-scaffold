@@ -6,4 +6,4 @@ def test_lakehouse_writer_present_when_enabled(cookies):
     slug = result.context["project_slug"]
     writer_path = result.project_path / "src" / slug / "lakehouse" / "writer.py"
     assert writer_path.is_file()
-    assert "def write_events(" in writer_path.read_text()
+    assert "class DuckDBEventSink:" in writer_path.read_text()
