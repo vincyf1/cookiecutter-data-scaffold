@@ -26,9 +26,9 @@ class EventSink(Protocol):
     ) -> None: ...
 
     def write(self, events: Sequence[Event]) -> None: ...
-
-
 {%- if not cookiecutter.include_lakehouse %}
+
+
 class PartitionedParquetEventSink:
     def __init__(self, destination: Path) -> None:
         self.destination = destination
