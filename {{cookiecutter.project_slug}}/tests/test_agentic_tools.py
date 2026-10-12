@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from {{ cookiecutter.project_slug }}.agentic.contracts import ProposedEdit
@@ -6,6 +8,7 @@ from {{ cookiecutter.project_slug }}.agentic.tools import (
     ToolContext,
     ToolDefinition,
     ToolError,
+    is_credential_file,
     list_repo_files,
     propose_patch,
     read_repo_file,
@@ -73,6 +76,20 @@ def test_credential_guard_ignores_case(ctx, variant):
     path.write_text("ANTHROPIC_API_KEY=sk-ant-not-a-real-key")
     with pytest.raises(ToolError, match="credential"):
         read_repo_file(ctx, variant)
+
+
+@pytest.mark.parametrize(
+    "alias", [".env.", ".env ", ".env. . ", ".env::$DATA", ".env:secret", "prod.pem.", "id_rsa "]
+)
+def test_credential_guard_sees_through_windows_name_aliases(alias):
+    # Windows drops trailing dots and spaces, and NTFS opens "<name>:<stream>"
+    # as a stream of <name>, so each of these opens a credential file there.
+    assert is_credential_file(Path(alias))
+
+
+@pytest.mark.parametrize("ordinary", ["src/dag.py", ".env.example", "environment.py", "README.md"])
+def test_credential_guard_leaves_ordinary_files_alone(ordinary):
+    assert not is_credential_file(Path(ordinary))
 
 
 def test_read_repo_file_refuses_a_symlink_to_a_credential_file(ctx):

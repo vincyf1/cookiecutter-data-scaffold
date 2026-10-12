@@ -60,10 +60,19 @@ CREDENTIAL_PATTERNS = (
 CREDENTIAL_EXCEPTIONS = frozenset({".env.example"})
 
 
+def _as_opened(name: str) -> str:
+    """The name the file system actually opens, compared caselessly.
+
+    Each step closes an alias that opens a credential file under another
+    name: case-insensitive file systems (macOS, Windows) open ".ENV" as
+    ".env"; NTFS opens ".env:stream" as a stream of ".env"; and Windows drops
+    trailing dots and spaces, so ".env. " is ".env".
+    """
+    return name.split(":", 1)[0].rstrip(". ").casefold()
+
+
 def is_credential_file(path: Path) -> bool:
-    # Lower-case first: on case-insensitive file systems (macOS, Windows)
-    # ".ENV" opens ".env", so a case-sensitive match would be a bypass.
-    name = path.name.lower()
+    name = _as_opened(path.name)
     if name in CREDENTIAL_EXCEPTIONS:
         return False
     return any(fnmatchcase(name, pattern) for pattern in CREDENTIAL_PATTERNS)
