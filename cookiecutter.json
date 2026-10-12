@@ -6,7 +6,7 @@
   "include_streaming": true,
   "include_lakehouse": true,
   "include_dbt": true,
-  "include_agentic": true,
+  "include_agentic": false,
   "agentic_model": "claude-haiku-4-5",
   "agentic_grader_model": "claude-haiku-4-5",
   "dbt_duckdb_version": "1.8",

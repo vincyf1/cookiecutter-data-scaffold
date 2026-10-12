@@ -85,7 +85,7 @@ These are the variables you'll be prompted for (see [`cookiecutter.json`](cookie
 | `dbt_duckdb_version`  | `1.8`             | Pinned `dbt-duckdb` version                                |
 | `sqlfluff_version`    | `3.1.0`           | Pinned `sqlfluff` version                                  |
 | `airflow_version`     | `3.2.0`           | Pinned `apache-airflow` version                            |
-| `include_agentic`     | `true`            | Scaffold the agentic self-healing loop (requires `include_batch`) |
+| `include_agentic`     | `false`           | Scaffold the agentic self-healing loop (requires `include_batch`; opt-in because it calls a hosted model) |
 | `agentic_model`       | `claude-haiku-4-5` | Model used for diagnosis                                 |
 | `agentic_grader_model` | `claude-haiku-4-5` | Model used by the eval grader                           |
 

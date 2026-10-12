@@ -6,6 +6,15 @@ import pytest
 from conftest import bake_with
 
 
+def test_agentic_is_opt_in_by_default(cookies):
+    # The Pattern sends failure logs and source to a hosted model and needs an
+    # API key, so a project generated with no choices made must not get it.
+    result = cookies.bake()
+    assert result.exit_code == 0
+    assert result.context["include_agentic"] is False
+    assert not (result.project_path / "evals").exists()
+
+
 def test_agentic_flag_is_in_context(cookies):
     result = bake_with(cookies, include_agentic=True, include_batch=True)
     assert result.exit_code == 0

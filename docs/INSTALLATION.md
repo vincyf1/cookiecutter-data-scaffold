@@ -91,7 +91,7 @@ cookiecutter gh:vincyf1/cookiecutter-data-scaffold --no-input \
 | `dbt_duckdb_version` | `1.8` | Pinned `dbt-duckdb` version in the generated project |
 | `sqlfluff_version` | `3.1.0` | Pinned `sqlfluff` version in the generated project |
 | `airflow_version` | `3.2.0` | Pinned `apache-airflow` version (also used as the Docker image tag for the Batch demo service) |
-| `include_agentic` | `true` | Scaffold the agentic self-healing loop (requires `include_batch`) |
+| `include_agentic` | `false` | Scaffold the agentic self-healing loop (requires `include_batch`; opt-in because it calls a hosted model) |
 | `agentic_model` | `claude-haiku-4-5` | Model used for diagnosis |
 | `agentic_grader_model` | `claude-haiku-4-5` | Model used by the eval grader |
 
