@@ -1,31 +1,100 @@
-from unittest.mock import MagicMock, patch
+from pathlib import Path
 
+import pytest
+
+from {{ cookiecutter.project_slug }}.events import Event
 from {{ cookiecutter.project_slug }}.streaming.consumer import handle_message, run
 
 
-def test_handle_message_parses_json():
-    raw = b'{"id": 1, "name": "example"}'
-    assert handle_message(raw) == {"id": 1, "name": "example"}
+class Message:
+    def __init__(self, value: bytes):
+        self._value = value
+
+    def error(self):
+        return None
+
+    def value(self):
+        return self._value
 
 
-@patch("{{ cookiecutter.project_slug }}.streaming.consumer.write_events")
-@patch("{{ cookiecutter.project_slug }}.streaming.consumer.Consumer")
-def test_run_skips_malformed_message_without_crashing(mock_consumer_cls, mock_write_events):
-    bad_msg = MagicMock()
-    bad_msg.error.return_value = None
-    bad_msg.value.return_value = b"not json"
+class Consumer:
+    def __init__(self):
+        self.messages = iter([Message(b"not json"), Message(b'{"id": 2, "name": "ok"}')])
+        self.closed = False
 
-    good_msg = MagicMock()
-    good_msg.error.return_value = None
-    good_msg.value.return_value = b'{"id": 2, "name": "ok"}'
+    def subscribe(self, topics):
+        self.topics = topics
 
-    mock_consumer = mock_consumer_cls.return_value
-    mock_consumer.poll.side_effect = [bad_msg, good_msg, StopIteration()]
+    def poll(self, timeout):
+        return next(self.messages)
 
-    try:
-        run()
-    except StopIteration:
-        pass
+    def close(self):
+        self.closed = True
 
-    mock_write_events.assert_called_once_with([{"id": 2, "name": "ok"}])
-    mock_consumer.close.assert_called_once()
+
+class Sink:
+    def __init__(self):
+        self.enter_count = 0
+        self.exit_count = 0
+        self.batches = []
+
+    def __enter__(self):
+        self.enter_count += 1
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.exit_count += 1
+
+    def write(self, events):
+        self.batches.append(list(events))
+
+
+def test_handle_message_returns_typed_event():
+    assert handle_message(b'{"id": 1, "name": "example"}') == Event(id=1, name="example")
+
+
+def test_handle_message_rejects_invalid_event():
+    with pytest.raises((TypeError, ValueError, KeyError)):
+        handle_message(b'{"id": "bad", "name": "example"}')
+
+
+def test_run_owns_one_sink_for_consumer_lifetime():
+    consumer = Consumer()
+    sink = Sink()
+
+    with pytest.raises(StopIteration):
+        run(
+            consumer_factory=lambda config: consumer,
+            sink_factory=lambda destination: sink,
+            destination=Path("unused"),
+        )
+
+    assert sink.enter_count == 1
+    assert sink.exit_count == 1
+    assert sink.batches == [[Event(id=2, name="ok")]]
+    assert consumer.closed is True
+
+
+@pytest.mark.parametrize("payload", [None, b"null", b"[]", b'{"id": true, "name": "bad"}'])
+def test_run_skips_invalid_payload_and_continues(payload):
+    consumer = Consumer()
+    consumer.messages = iter([Message(payload), Message(b'{"id": 2, "name": "ok"}')])
+    sink = Sink()
+    with pytest.raises(StopIteration):
+        run(consumer_factory=lambda config: consumer, sink_factory=lambda destination: sink)
+    assert sink.batches == [[Event(id=2, name="ok")]]
+    assert consumer.closed
+
+
+def test_storage_failure_closes_resources_and_propagates():
+    consumer = Consumer()
+
+    class FailingSink(Sink):
+        def write(self, events):
+            raise OSError("storage unavailable")
+
+    sink = FailingSink()
+    with pytest.raises(OSError, match="storage unavailable"):
+        run(consumer_factory=lambda config: consumer, sink_factory=lambda destination: sink)
+    assert sink.exit_count == 1
+    assert consumer.closed
