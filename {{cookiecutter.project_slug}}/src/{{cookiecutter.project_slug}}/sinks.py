@@ -46,9 +46,7 @@ class PartitionedParquetEventSink:
         partition_id = uuid4().hex
         final_path = self.destination / f"part-{partition_id}.parquet"
         temporary_path = self.destination / f".{partition_id}.tmp"
-        table = pa.Table.from_pylist(
-            [{"id": event.id, "name": event.name} for event in events]
-        )
+        table = pa.Table.from_pylist([{"id": event.id, "name": event.name} for event in events])
         try:
             pq.write_table(table, temporary_path, compression="snappy")
             temporary_path.replace(final_path)
