@@ -53,6 +53,39 @@ def test_read_repo_file_rejects_a_symlink_escape(ctx, tmp_path):
         read_repo_file(ctx, "link.txt")
 
 
+@pytest.mark.parametrize(
+    "secret", [".env", ".env.local", "config/prod.pem", "keys/service.key", ".ssh/id_ed25519"]
+)
+def test_read_repo_file_refuses_credential_files(ctx, secret):
+    path = ctx.project_root / secret
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("ANTHROPIC_API_KEY=sk-ant-not-a-real-key")
+    with pytest.raises(ToolError, match="credential"):
+        read_repo_file(ctx, secret)
+
+
+def test_read_repo_file_refuses_a_symlink_to_a_credential_file(ctx):
+    (ctx.project_root / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-not-a-real-key")
+    (ctx.project_root / "notes.txt").symlink_to(ctx.project_root / ".env")
+    with pytest.raises(ToolError, match="credential"):
+        read_repo_file(ctx, "notes.txt")
+
+
+def test_propose_patch_refuses_credential_files(ctx):
+    (ctx.project_root / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-not-a-real-key\n")
+    with pytest.raises(ToolError, match="credential"):
+        propose_patch(ctx, ".env", "sk-ant", "x", "leak")
+
+
+def test_list_repo_files_hides_credential_files(ctx):
+    (ctx.project_root / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-not-a-real-key")
+    (ctx.project_root / "src" / "deploy.pem").write_text("-----BEGIN PRIVATE KEY-----")
+    listing = list_repo_files(ctx).splitlines()
+    assert ".env" not in listing
+    assert "src/deploy.pem" not in listing
+    assert "src/dag.py" in listing
+
+
 def test_propose_patch_stages_an_edit_without_touching_disk(ctx):
     before = (ctx.project_root / "src" / "dag.py").read_text()
 

@@ -12,6 +12,7 @@ into the latter but guesswork.
 
 import difflib
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
 
 from {{ cookiecutter.project_slug }}.agentic.contracts import ProposedEdit
@@ -42,6 +43,28 @@ SKIP_DIRS = frozenset(
     }
 )
 
+# Files the agent may never read, patch or see listed. Outside Docker the
+# project root is the developer's checkout, where `.env` holds the API key
+# this very agent runs on; anything it reads is sent to the model and
+# summarised into traces.
+CREDENTIAL_PATTERNS = (
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "id_rsa*",
+    "id_dsa*",
+    "id_ecdsa*",
+    "id_ed25519*",
+)
+CREDENTIAL_EXCEPTIONS = frozenset({".env.example"})
+
+
+def is_credential_file(path: Path) -> bool:
+    if path.name in CREDENTIAL_EXCEPTIONS:
+        return False
+    return any(fnmatch(path.name, pattern) for pattern in CREDENTIAL_PATTERNS)
+
 
 class ToolError(Exception):
     """Raised for any rejected tool call. Returned to the model as a tool error."""
@@ -65,6 +88,10 @@ class ToolContext:
         candidate = (root / path).resolve()
         if not candidate.is_relative_to(root):
             raise ToolError(f"path '{path}' resolves outside the project root")
+        # Check the requested name and the resolved one, so a harmless-looking
+        # symlink cannot stand in for a credential file.
+        if is_credential_file(Path(path)) or is_credential_file(candidate):
+            raise ToolError(f"path '{path}' is a credential file and is off limits")
         return candidate
 
 
@@ -107,6 +134,8 @@ def list_repo_files(
         # rglob follows directory symlinks, so re-check containment per hit
         # rather than trusting that a walk rooted inside the tree stays there.
         if not path.resolve().is_relative_to(root):
+            continue
+        if is_credential_file(path) or is_credential_file(path.resolve()):
             continue
         found.append(relative.as_posix())
         if len(found) > max_entries:
