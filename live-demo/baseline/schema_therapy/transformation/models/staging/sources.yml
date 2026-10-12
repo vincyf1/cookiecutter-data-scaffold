@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: lakehouse
+    schema: main
+    tables:
+      - name: events
+      - name: raw_customers
+        description: Snapshot of demo_source.customers loaded from Supabase Postgres.
+      - name: raw_transactions
+        description: Snapshot of demo_source.transactions loaded from Supabase Postgres.

@@ -1,0 +1,9 @@
+name: 'schema_therapy'
+version: '1.0.0'
+profile: 'schema_therapy'
+model-paths: ["models"]
+seed-paths: ["seeds"]
+
+# Keep the scaffold's example events source available for full-project builds.
+on-run-start:
+  - "CREATE TABLE IF NOT EXISTS events ( id BIGINT, name VARCHAR, ingested_at TIMESTAMP DEFAULT now() )"

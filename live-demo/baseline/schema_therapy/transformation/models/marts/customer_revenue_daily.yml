@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: customer_revenue_daily
+    description: >
+      One row per customer and UTC date with at least one completed transaction.
+      Revenue is the sum of positive AUD transaction amounts with status completed.
+      Failed transactions are excluded. Days without completed transactions have
+      no row. Customer segment and region reflect the customer record at build time.
+    config:
+      meta:
+        audience: agents_and_reporting
+        currency: AUD
+        grain: customer_id, revenue_date
+    semantic_model:
+      enabled: true
+    agg_time_dimension: revenue_date
+    columns:
+      - name: customer_day_id
+        description: Unique key for a customer and UTC revenue date.
+        data_tests: [not_null, unique]
+        entity:
+          type: primary
+          name: customer_day
+      - name: customer_id
+        description: Customer whose completed transactions contributed to this day.
+        data_tests: [not_null]
+        entity:
+          type: foreign
+          name: customer
+      - name: revenue_date
+        description: UTC calendar date of completed transactions.
+        data_tests: [not_null]
+        granularity: day
+        dimension:
+          type: time
+      - name: customer_segment
+        description: Customer segment; bronze, silver, or gold.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['bronze', 'silver', 'gold']
+        dimension:
+          type: categorical
+      - name: region
+        description: Australian state code from the current customer record.
+        data_tests: [not_null]
+        dimension:
+          type: categorical
+      - name: completed_transaction_count
+        description: Number of completed transactions for this customer and day.
+        data_tests: [not_null]
+      - name: revenue_aud
+        description: Completed sales amount in AUD for this customer and day.
+        data_tests: [not_null]
+    metrics:
+      - name: completed_revenue_aud
+        label: Completed Revenue (AUD)
+        description: >
+          Sum of completed transaction amounts in AUD. Excludes failed transactions;
+          no refunds, taxes, or currency conversions are modeled.
+        type: simple
+        agg: sum
+        expr: revenue_aud
+      - name: completed_transactions
+        label: Completed Transactions
+        description: Count of completed transactions, additive across dates and customers.
+        type: simple
+        agg: sum
+        expr: completed_transaction_count
+      - name: purchasing_customers
+        label: Purchasing Customers
+        description: Distinct customers with a completed transaction in the queried period.
+        type: simple
+        agg: count_distinct
+        expr: customer_id

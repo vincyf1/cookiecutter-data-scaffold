@@ -1,0 +1,7 @@
+[sqlfluff]
+dialect = duckdb
+templater = dbt
+
+[sqlfluff:templater:dbt]
+project_dir = transformation
+profiles_dir = transformation

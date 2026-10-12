@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: Customer attributes normalized from the Supabase source snapshot.
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+      - name: customer_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['bronze', 'silver', 'gold']
+  - name: stg_transactions
+    description: Transactions with normalized status and a UTC transaction date.
+    columns:
+      - name: transaction_id
+        data_tests: [not_null, unique]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['completed', 'failed']

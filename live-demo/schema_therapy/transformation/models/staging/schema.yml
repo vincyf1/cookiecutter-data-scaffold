@@ -1,0 +1,9 @@
+version: 2
+
+models:
+  - name: stg_events
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]

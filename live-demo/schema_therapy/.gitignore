@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Data / lakehouse
+*.duckdb
+data/
+
+# dbt
+dbt_packages/
+target/
+
+# Airflow
+logs/
+
+# Local database credentials
+.env
+.env.Local
+

@@ -1,0 +1,23 @@
+
+services:
+  airflow-standalone:
+    image: apache/airflow:3.2.0
+    command: ["bash", "-c", "python /opt/airflow/project/scripts/seed_airflow_admin.py && exec airflow standalone"]
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: admin:admin
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/simple_auth_manager_passwords.json.generated
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?Set AIRFLOW_ADMIN_PASSWORD in .env}
+      PYTHONPATH: /opt/airflow/project/src
+      _PIP_ADDITIONAL_REQUIREMENTS: "pyarrow>=17.0 duckdb>=1.0 psycopg[binary]>=3.2 dbt-duckdb>=1.11"
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
+      LAKEHOUSE_DB_PATH: /opt/airflow/project/data/lakehouse.duckdb
+      DBT_PROJECT_DIR: /opt/airflow/project/transformation
+    volumes:
+      - ./src:/opt/airflow/project/src
+      - ./src/schema_therapy/batch/dags:/opt/airflow/dags
+      - ./transformation:/opt/airflow/project/transformation
+      - ./scripts/seed_airflow_admin.py:/opt/airflow/project/scripts/seed_airflow_admin.py:ro
+      - ./data:/opt/airflow/project/data

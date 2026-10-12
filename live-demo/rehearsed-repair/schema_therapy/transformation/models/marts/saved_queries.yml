@@ -1,0 +1,16 @@
+version: 2
+
+saved_queries:
+  - name: daily_revenue_by_type
+    label: Daily Revenue by Customer Type
+    description: >
+      Daily completed AUD revenue, completed transaction count, and distinct
+      purchasing customers by the customer type at the latest dbt build.
+    query_params:
+      metrics:
+        - completed_revenue_aud
+        - completed_transactions
+        - purchasing_customers
+      group_by:
+        - "TimeDimension('metric_time', 'day')"
+        - "Dimension('customer_day__customer_type')"
