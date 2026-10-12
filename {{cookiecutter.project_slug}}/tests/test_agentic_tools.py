@@ -64,6 +64,17 @@ def test_read_repo_file_refuses_credential_files(ctx, secret):
         read_repo_file(ctx, secret)
 
 
+@pytest.mark.parametrize("variant", [".ENV", ".Env.Local", "config/PROD.PEM", ".ssh/ID_RSA"])
+def test_credential_guard_ignores_case(ctx, variant):
+    # macOS and Windows file systems are case-insensitive, so ".ENV" opens
+    # the same file as ".env"; the guard must not be case-sensitive either.
+    path = ctx.project_root / variant
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("ANTHROPIC_API_KEY=sk-ant-not-a-real-key")
+    with pytest.raises(ToolError, match="credential"):
+        read_repo_file(ctx, variant)
+
+
 def test_read_repo_file_refuses_a_symlink_to_a_credential_file(ctx):
     (ctx.project_root / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-not-a-real-key")
     (ctx.project_root / "notes.txt").symlink_to(ctx.project_root / ".env")

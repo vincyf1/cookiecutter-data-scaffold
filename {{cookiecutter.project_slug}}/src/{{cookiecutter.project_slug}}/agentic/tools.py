@@ -12,7 +12,7 @@ into the latter but guesswork.
 
 import difflib
 from dataclasses import dataclass, field
-from fnmatch import fnmatch
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from {{ cookiecutter.project_slug }}.agentic.contracts import ProposedEdit
@@ -61,9 +61,12 @@ CREDENTIAL_EXCEPTIONS = frozenset({".env.example"})
 
 
 def is_credential_file(path: Path) -> bool:
-    if path.name in CREDENTIAL_EXCEPTIONS:
+    # Lower-case first: on case-insensitive file systems (macOS, Windows)
+    # ".ENV" opens ".env", so a case-sensitive match would be a bypass.
+    name = path.name.lower()
+    if name in CREDENTIAL_EXCEPTIONS:
         return False
-    return any(fnmatch(path.name, pattern) for pattern in CREDENTIAL_PATTERNS)
+    return any(fnmatchcase(name, pattern) for pattern in CREDENTIAL_PATTERNS)
 
 
 class ToolError(Exception):
