@@ -22,10 +22,24 @@ class EvalCase:
     score: dict
 
 
-def load_cases() -> list[EvalCase]:
+def _check_case_shape(path: Path, raw: dict) -> None:
+    # tools_called used to be an ordered list. A case still written that way
+    # would otherwise fail mid-scoring with an AttributeError that names
+    # neither the file nor the shape it should have.
+    tools_called = raw.get("expect", {}).get("tools_called")
+    if tools_called is not None and not isinstance(tools_called, dict):
+        raise ValueError(
+            f"{path.name}: expect.tools_called must be a mapping with 'must_call' "
+            "(a list of tool names) and 'must_precede' (a list of [earlier, later] "
+            "pairs), not a list. Move an exact order to expect.exact_tool_sequence."
+        )
+
+
+def load_cases(cases_dir: Path = CASES_DIR) -> list[EvalCase]:
     cases = []
-    for path in sorted(CASES_DIR.glob("*.yaml")):
+    for path in sorted(cases_dir.glob("*.yaml")):
         raw = yaml.safe_load(path.read_text())
+        _check_case_shape(path, raw)
         cases.append(
             EvalCase(
                 id=raw["id"],

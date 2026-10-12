@@ -38,6 +38,25 @@ def test_unknown_failure_mode_reports_the_case_and_supported_modes(tmp_path):
     )
 
 
+def test_a_case_using_the_old_tools_called_list_is_rejected_on_load(tmp_path):
+    (tmp_path / "legacy.yaml").write_text(
+        "id: legacy\n"
+        "failure_mode: schema_drift\n"
+        "expect:\n"
+        "  tools_called: [read_task_log, propose_patch]\n"
+        "score:\n"
+        "  required: [tools_called]\n"
+        "  advisory: []\n"
+    )
+
+    with pytest.raises(ValueError) as error:
+        load_cases(tmp_path)
+
+    message = str(error.value)
+    assert "legacy.yaml" in message
+    assert "must_call" in message and "must_precede" in message
+
+
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
 def test_case_declares_required_and_advisory_criteria(case):
     assert case.score["required"], f"{case.id} gates on nothing"
