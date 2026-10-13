@@ -56,8 +56,21 @@ CREDENTIAL_PATTERNS = (
     "id_dsa*",
     "id_ecdsa*",
     "id_ed25519*",
+    ".netrc",
+    "_netrc",
+    ".pypirc",
 )
 CREDENTIAL_EXCEPTIONS = frozenset({".env.example"})
+
+# Directories the agent may never read from. A remote URL in .git/config can
+# embed the push token GitHubPublisher relies on.
+OFF_LIMITS_DIRS = frozenset({".git"})
+
+# The only top-level directories propose_patch may edit. With
+# AGENTIC_GITHUB_REPO set, a staged edit is pushed and CI runs it before
+# anyone reviews it, so the workflow, the test harness and the dependency
+# pins must stay out of a steered agent's reach.
+PATCHABLE_ROOTS = ("src", "transformation")
 
 
 def _as_opened(name: str) -> str:
@@ -104,6 +117,9 @@ class ToolContext:
         # symlink cannot stand in for a credential file.
         if is_credential_file(Path(path)) or is_credential_file(candidate):
             raise ToolError(f"path '{path}' is a credential file and is off limits")
+        parts = {_as_opened(part) for part in candidate.relative_to(root).parts}
+        if parts & OFF_LIMITS_DIRS:
+            raise ToolError(f"path '{path}' is inside {sorted(OFF_LIMITS_DIRS)} and is off limits")
         return candidate
 
 
@@ -205,6 +221,12 @@ def propose_patch(
     dropped later by render_diff.
     """
     target = ctx.resolve(path)
+    # Checked on the resolved path, so a symlink under src/ cannot point the
+    # edit at a workflow file.
+    relative = target.relative_to(ctx.project_root.resolve())
+    if not relative.parts or relative.parts[0] not in PATCHABLE_ROOTS:
+        roots = ", ".join(f"{name}/" for name in PATCHABLE_ROOTS)
+        raise ToolError(f"'{path}' cannot be patched; only files under {roots} can")
     if not target.is_file():
         raise ToolError(f"no such file: {path}")
     prior_edits = [edit for edit in ctx.edits if edit.path == path]
@@ -321,8 +343,9 @@ TOOL_DEFINITIONS = [
     ToolDefinition(
         name="propose_patch",
         description=(
-            "Stage a single replacement in a file. old_str must occur exactly once. "
-            "Nothing is written to disk; the staged edits become a reviewable diff."
+            "Stage a single replacement in a file under src/ or transformation/. "
+            "old_str must occur exactly once. Nothing is written to disk; the staged "
+            "edits become a reviewable diff."
         ),
         parameters={
             "type": "object",

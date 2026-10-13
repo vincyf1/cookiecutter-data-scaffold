@@ -51,7 +51,11 @@ chown is a no-op and the logs and patches stay owned by you instead of by uid
 echo "AIRFLOW_UID=$(id -u)" > .env
 ```
 
-Nothing is applied automatically. The agent proposes; you merge.
+Nothing is applied automatically. The agent proposes; you merge. With
+`AGENTIC_GITHUB_REPO` set, the patch is pushed to an `agentic/heal-*` branch and
+opened as a pull request, so CI runs it before anyone reviews it. That is why the
+agent can only patch files under `src/` and `transformation/`, never workflows,
+tests or dependency pins.
 
 ### Configuration
 
@@ -61,7 +65,8 @@ Nothing is applied automatically. The agent proposes; you merge.
 | `AGENTIC_GITHUB_REPO` | Set to `owner/repo` to open real pull requests instead of writing local patches. Requires push credentials and an authenticated `gh`. |
 
 The agent's tools are limited to reading the task log, reading a file inside
-the project root, and staging a single-occurrence replacement. It cannot run
+the project root (never `.git/` or credential files), and staging a
+single-occurrence replacement under `src/` or `transformation/`. It cannot run
 shell commands or write to disk.
 
 Edit the diagnosis prompt at `src/{{ cookiecutter.project_slug }}/agentic/prompts/diagnose.md`.

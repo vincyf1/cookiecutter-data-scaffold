@@ -301,3 +301,50 @@ def test_tool_definitions_name_no_provider():
     assert fields == {"name", "description", "parameters"}
     for provider_key in ("input_schema", "function", "parameters_schema"):
         assert provider_key not in fields or provider_key == "parameters"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [".github/workflows/ci.yml", "tests/conftest.py", "pyproject.toml", "uv.lock", "README.md"],
+)
+def test_propose_patch_refuses_files_outside_the_patchable_roots(ctx, tmp_path, target):
+    # With AGENTIC_GITHUB_REPO set, a staged edit is pushed and CI runs it
+    # before anyone reviews it. A steered agent must not be able to reach
+    # the workflow, the test harness or the dependency pins.
+    (tmp_path / target).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / target).write_text("run: pytest\n")
+    with pytest.raises(ToolError, match="only files under"):
+        propose_patch(ctx, target, "pytest", "curl evil", "steered")
+    assert ctx.edits == []
+
+
+def test_propose_patch_refuses_a_symlink_from_src_to_a_workflow(ctx, tmp_path):
+    workflow = tmp_path / ".github" / "workflows" / "ci.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text("run: pytest\n")
+    (tmp_path / "src" / "ci.yml").symlink_to(workflow)
+    with pytest.raises(ToolError, match="only files under"):
+        propose_patch(ctx, "src/ci.yml", "pytest", "curl evil", "steered")
+
+
+def test_propose_patch_accepts_dbt_models(ctx, tmp_path):
+    model = tmp_path / "transformation" / "models" / "stg_events.sql"
+    model.parent.mkdir(parents=True)
+    model.write_text("select customer_name from events\n")
+    propose_patch(ctx, "transformation/models/stg_events.sql", "customer_name", "name", "fix")
+    assert len(ctx.edits) == 1
+
+
+@pytest.mark.parametrize("path", [".git/config", "./.git/config", "src/../.git/config"])
+def test_read_repo_file_refuses_the_git_directory(ctx, tmp_path, path):
+    # A remote URL in .git/config can embed a push token -- exactly the
+    # credential GitHubPublisher needs. Anything read is sent to the model.
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text("url = https://x:ghp_TOKEN@github.com/o/r\n")
+    with pytest.raises(ToolError, match="off limits"):
+        read_repo_file(ctx, path)
+
+
+@pytest.mark.parametrize("name", [".netrc", ".pypirc", "_netrc"])
+def test_credential_guard_covers_netrc_and_pypirc(name):
+    assert is_credential_file(Path(name))
