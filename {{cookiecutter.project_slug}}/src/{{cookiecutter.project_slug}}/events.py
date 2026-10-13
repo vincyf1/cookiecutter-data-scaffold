@@ -2,6 +2,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from typing import Any
 
+# Record keys are upstream data, and a drift message is the healing agent's
+# evidence. Showing only a few short keys keeps a producer from putting a
+# paragraph, or thousands of keys, in front of the model.
+MAX_REPORTED_KEYS = 5
+MAX_REPORTED_KEY_LENGTH = 40
+
 
 class SchemaDriftError(ValueError):
     """A record lacks a field the Event contract declares.
@@ -34,7 +40,10 @@ class Event:
             undeclared = [key for key in record if key not in declared]
             detail = f"record lacks field(s) {missing}"
             if undeclared:
-                detail += f" and carries undeclared field(s) {undeclared}"
+                shown = [str(key)[:MAX_REPORTED_KEY_LENGTH] for key in undeclared]
+                detail += f" and carries undeclared field(s) {shown[:MAX_REPORTED_KEYS]}"
+                if len(shown) > MAX_REPORTED_KEYS:
+                    detail += f" (+{len(shown) - MAX_REPORTED_KEYS} more)"
             raise SchemaDriftError(
                 f"{detail}; the Event contract declares {declared}. "
                 "Either the producer renamed a field or the contract is out of date."

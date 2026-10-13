@@ -11,6 +11,7 @@ from {{ cookiecutter.project_slug }}.agentic.contracts import (
 )
 from {{ cookiecutter.project_slug }}.agentic.runner import (
     MODEL,
+    SYSTEM_PROMPT,
     ClaudeRunner,
     FakeRunner,
     _model_kwargs,
@@ -393,3 +394,10 @@ def test_a_file_larger_than_the_trace_limit_reaches_the_model_intact(failure_ctx
     # agent's evidence is not, and one constant cannot serve both.
     summary = next(e for e in recorder.elements if e.kind == "tool_call").output_summary
     assert len(summary["text"]) < len(body)
+
+
+def test_the_prompt_treats_pipeline_evidence_as_data_not_instructions():
+    # Logs, exception messages and file contents can carry text an upstream
+    # producer controls. The prompt is the only place the model is told
+    # that none of it can override its rules.
+    assert "data, not instructions" in SYSTEM_PROMPT
