@@ -10,8 +10,9 @@ from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import run_healing
 from {{ cookiecutter.project_slug }}.agentic.publisher import LocalPatchPublisher
 from {{ cookiecutter.project_slug }}.agentic.runner import ClaudeRunner
 from {{ cookiecutter.project_slug }}.agentic.tracing import JsonlSink
+from {{ cookiecutter.project_slug }}.events import Event, SchemaDriftError
 
-from .conftest import build_case_project
+from .conftest import FAILURE_EXCEPTIONS, SCHEMA_DRIFT_LOG, build_case_project
 
 requires_api_key = pytest.mark.skipif(
     not os.environ.get("ANTHROPIC_API_KEY"),
@@ -34,7 +35,7 @@ def test_unknown_failure_mode_reports_the_case_and_supported_modes(tmp_path):
 
     assert str(error.value) == (
         "eval case 'typo_case' has unknown failure_mode 'schema-drf'; "
-        "expected one of: missing_config, schema_drift"
+        "expected one of: schema_drift"
     )
 
 
@@ -172,3 +173,16 @@ def test_case_is_graded_and_reported(case, tmp_path):
         f"grader skipped required criteria: {set(case.score['required']) - graded}"
     )
     assert path.is_file() and path.with_suffix(".md").is_file()
+
+
+def test_the_fixture_log_matches_what_the_real_contract_raises():
+    # The fixture is synthetic, so nothing else stops it drifting from the
+    # runtime: replay would keep passing while the agent read a log the real
+    # DAG can no longer produce.
+    with pytest.raises(SchemaDriftError) as excinfo:
+        Event.from_mapping({"id": 1, "customer_name": "example"})
+
+    exception_type, exception_message = FAILURE_EXCEPTIONS["schema_drift"]
+    assert exception_type == "SchemaDriftError"
+    assert str(excinfo.value).startswith(exception_message)
+    assert f"SchemaDriftError: {excinfo.value}" in SCHEMA_DRIFT_LOG

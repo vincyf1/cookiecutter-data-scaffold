@@ -195,8 +195,8 @@ def test_evals_present_when_enabled(cookies):
     assert (evals / "test_cases.py").is_file()
     assert (evals / "cases" / "schema_drift.yaml").is_file()
     assert (evals / "cassettes" / "schema_drift.json").is_file()
-    assert (evals / "cases" / "missing_config.yaml").is_file()
-    assert (evals / "cassettes" / "missing_config.json").is_file()
+    assert not (evals / "cases" / "missing_config.yaml").exists()
+    assert not (evals / "cassettes" / "missing_config.json").exists()
 
 
 def test_every_eval_case_has_a_cassette(cookies):
@@ -344,6 +344,25 @@ def test_readme_documents_the_failure_mode_this_bake_actually_ships(
 
     assert mode in readme
     assert f'FAILURE_MODES = ["none", "{mode}"]' in dag
+
+
+@pytest.mark.parametrize("lakehouse", [True, False])
+def test_no_bake_ships_the_retired_missing_config_mode(cookies, lakehouse):
+    result = bake_with(
+        cookies, include_agentic=True, include_batch=True, include_lakehouse=lakehouse
+    )
+    project = result.project_path
+    slug = result.context["project_slug"]
+
+    assert not (project / "src" / slug / "batch" / "config.py").exists()
+    assert not (project / "src" / slug / "batch" / "pipeline.toml").exists()
+    assert not (project / "tests" / "test_batch_config.py").exists()
+    offenders = [
+        path.relative_to(project).as_posix()
+        for path in project.rglob("*")
+        if path.is_file() and "missing_config" in path.read_text(errors="ignore")
+    ]
+    assert offenders == []
 
 
 # --------------------------------------------------------------------------

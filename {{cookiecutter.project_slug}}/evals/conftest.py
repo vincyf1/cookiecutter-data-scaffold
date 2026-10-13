@@ -1,10 +1,9 @@
 """Builds a throwaway project tree matching a case's failure_mode.
 
 The tree is synthetic rather than a real bake, so a case is independent of
-which Patterns this project was generated with: the schema_drift fixture
-carries a DDL even when the Lakehouse Pattern is off, and the
-missing_config fixture carries a pipeline.toml even when it is on. Each
-case still mirrors the shape the corresponding demo actually ships.
+which Patterns this project was generated with. It still mirrors the shape
+the demo ships: a DAG whose extract() emits a renamed field, and the Event
+contract that load() validates each record against.
 """
 
 from pathlib import Path
@@ -21,57 +20,44 @@ def example_events_dag():
         return [{"id": 1, "customer_name": "example"}]
 '''
 
-DDL_SOURCE = """CREATE TABLE IF NOT EXISTS events (
-    id BIGINT,
-    name VARCHAR,
-    ingested_at TIMESTAMP DEFAULT now()
-);
-"""
+EVENT_SOURCE = '''from collections.abc import Mapping
+from dataclasses import dataclass, fields
+from typing import Any
+
+
+class SchemaDriftError(ValueError):
+    """A record lacks a field the Event contract declares."""
+
+
+@dataclass(frozen=True, slots=True)
+class Event:
+    id: int
+    name: str
+
+    @classmethod
+    def from_mapping(cls, record: Mapping[str, Any]) -> "Event":
+        declared = [field.name for field in fields(cls)]
+        missing = [name for name in declared if name not in record]
+        if missing:
+            raise SchemaDriftError(f"record lacks field(s) {missing}")
+        return cls(id=record["id"], name=record["name"])
+'''
+
+SCHEMA_DRIFT_MESSAGE = (
+    "record lacks field(s) ['name'] and carries undeclared field(s) "
+    "['customer_name']; the Event contract declares ['id', 'name']. "
+    "Either the producer renamed a field or the contract is out of date."
+)
 
 SCHEMA_DRIFT_LOG = (
     "[2026-07-29T00:00:00] INFO - Task load starting\n"
     "[2026-07-29T00:00:01] ERROR - Task failed with exception\n"
     "Traceback (most recent call last):\n"
-    "SchemaDriftError: record carries undeclared field(s) ['customer_name']; "
-    "the events table declares columns ['id', 'name', 'ingested_at']. "
-    "Either the producer renamed a field or the DDL is out of date.\n"
-)
-
-MISSING_CONFIG_DAG = '''from airflow.sdk import dag, task
-
-from pkg.batch.sinks import write_events
-
-
-@dag()
-def example_events_dag():
-    @task
-    def load(records: list[dict]) -> None:
-        write_events(records, output_setting="output_file")
-'''
-
-PIPELINE_TOML = """[pipeline]
-output_path = "data/events/events.parquet"
-compression = "snappy"
-"""
-
-MISSING_CONFIG_LOG = (
-    "[2026-07-29T00:00:00] INFO - Task load starting\n"
-    "[2026-07-29T00:00:01] ERROR - Task failed with exception\n"
-    "Traceback (most recent call last):\n"
-    "MissingConfigError: pipeline config declares no setting 'output_file'; "
-    "pipeline.toml declares ['compression', 'output_path']. "
-    "Either the caller renamed a setting or the config file is out of date.\n"
+    f"SchemaDriftError: {SCHEMA_DRIFT_MESSAGE}\n"
 )
 
 FAILURE_EXCEPTIONS = {
-    "schema_drift": (
-        "SchemaDriftError",
-        "record carries undeclared field(s) ['customer_name']",
-    ),
-    "missing_config": (
-        "MissingConfigError",
-        "pipeline config declares no setting 'output_file'",
-    ),
+    "schema_drift": ("SchemaDriftError", SCHEMA_DRIFT_MESSAGE),
 }
 
 
@@ -88,18 +74,9 @@ def build_case_project(tmp_path: Path, case) -> tuple[Path, FailureContext]:
             f"expected one of: {supported}"
         )
 
-    dag_path = tmp_path / "src" / "pkg" / "batch" / "dags" / "example_dag.py"
-
-    if case.failure_mode == "missing_config":
-        _write(dag_path, MISSING_CONFIG_DAG)
-        _write(tmp_path / "src" / "pkg" / "batch" / "pipeline.toml", PIPELINE_TOML)
-        log = MISSING_CONFIG_LOG
-    else:
-        _write(dag_path, SCHEMA_DRIFT_DAG)
-        _write(tmp_path / "src" / "pkg" / "lakehouse" / "create_tables.sql", DDL_SOURCE)
-        log = SCHEMA_DRIFT_LOG
-
-    (tmp_path / "load.log").write_text(log)
+    _write(tmp_path / "src" / "pkg" / "batch" / "dags" / "example_dag.py", SCHEMA_DRIFT_DAG)
+    _write(tmp_path / "src" / "pkg" / "events.py", EVENT_SOURCE)
+    (tmp_path / "load.log").write_text(SCHEMA_DRIFT_LOG)
     exception_type, exception_message = FAILURE_EXCEPTIONS[case.failure_mode]
 
     ctx = FailureContext(
