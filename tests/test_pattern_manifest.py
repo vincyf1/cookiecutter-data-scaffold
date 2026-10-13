@@ -28,6 +28,7 @@ def _load_patterns():
             "include_streaming": True,
             "include_lakehouse": True,
             "include_dbt": True,
+            "include_agentic": True,
         }
     }
     rendered = jinja2.Template(HOOK_PATH.read_text()).render(**context)

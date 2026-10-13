@@ -1,0 +1,980 @@
+<title>Verifying the Agentic Pattern before merge</title>
+
+<style>
+  :root {
+    --ground:      #F2F5F6;
+    --raised:      #FFFFFF;
+    --sunken:      #E8EDEE;
+    --ink:         #101A1D;
+    --ink-soft:    #46585C;
+    --ink-faint:   #7C8D91;
+    --rule:        #D3DCDE;
+    --accent:      #0B6B72;
+    --accent-soft: #E0EDEE;
+    --fail:        #A8560C;
+    --fail-soft:   #F6EADC;
+    --pass:        #2F6B4F;
+    --pass-soft:   #E2EDE7;
+
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --measure: 68ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:      #0D1416;
+      --raised:      #141F22;
+      --sunken:      #0A1012;
+      --ink:         #DCE5E6;
+      --ink-soft:    #9AACAF;
+      --ink-faint:   #6A7C80;
+      --rule:        #253437;
+      --accent:      #4FB3B8;
+      --accent-soft: #12292C;
+      --fail:        #D18B3D;
+      --fail-soft:   #2A2018;
+      --pass:        #5FA47E;
+      --pass-soft:   #16241E;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0D1416;
+    --raised:      #141F22;
+    --sunken:      #0A1012;
+    --ink:         #DCE5E6;
+    --ink-soft:    #9AACAF;
+    --ink-faint:   #6A7C80;
+    --rule:        #253437;
+    --accent:      #4FB3B8;
+    --accent-soft: #12292C;
+    --fail:        #D18B3D;
+    --fail-soft:   #2A2018;
+    --pass:        #5FA47E;
+    --pass-soft:   #16241E;
+  }
+
+  :root[data-theme="light"] {
+    --ground:      #F2F5F6;
+    --raised:      #FFFFFF;
+    --sunken:      #E8EDEE;
+    --ink:         #101A1D;
+    --ink-soft:    #46585C;
+    --ink-faint:   #7C8D91;
+    --rule:        #D3DCDE;
+    --accent:      #0B6B72;
+    --accent-soft: #E0EDEE;
+    --fail:        #A8560C;
+    --fail-soft:   #F6EADC;
+    --pass:        #2F6B4F;
+    --pass-soft:   #E2EDE7;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 1.5rem 6rem;
+  }
+
+  @media (min-width: 1100px) {
+    .shell { grid-template-columns: 15rem minmax(0, 1fr); gap: 3.5rem; }
+  }
+
+  /* ---------- section rail ---------- */
+  .rail { display: none; }
+  @media (min-width: 1100px) {
+    .rail {
+      display: block;
+      position: sticky;
+      top: 0;
+      align-self: start;
+      padding-top: 7.5rem;
+      max-height: 100vh;
+      overflow-y: auto;
+    }
+  }
+  .rail h2 {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink-faint);
+    margin-bottom: 0.9rem;
+    font-weight: 500;
+  }
+  .rail ol { list-style: none; display: flex; flex-direction: column; gap: 0.45rem; margin: 0; }
+  .rail li { margin: 0; }
+  .rail a {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-left: 2px solid var(--rule);
+    padding-left: 0.7rem;
+    display: block;
+    line-height: 1.4;
+  }
+  .rail a:hover, .rail a:focus-visible { color: var(--accent); border-left-color: var(--accent); }
+  .rail a .rn { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+  main { min-width: 0; }
+
+  /* ---------- masthead ---------- */
+  .masthead { padding: 5rem 0 2.5rem; border-bottom: 1px solid var(--rule); }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .masthead h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.9rem, 4.4vw, 2.9rem);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    margin: 0.9rem 0 1.1rem;
+    text-wrap: balance;
+    max-width: 24ch;
+  }
+  .standfirst { max-width: var(--measure); color: var(--ink-soft); font-size: 1.08rem; }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 2.5rem;
+  }
+  .fact { background: var(--ground); padding: 0.95rem 1.1rem; }
+  .fact dt {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+  }
+  .fact dd {
+    font-family: var(--mono);
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 0.25rem 0 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .fact dd small { font-size: 0.72rem; font-weight: 400; color: var(--ink-soft); letter-spacing: 0; }
+  .fact.is-blocked dd { color: var(--fail); }
+
+  /* ---------- sections ---------- */
+  section { padding-top: 3.5rem; }
+  section > * { max-width: var(--measure); }
+  section > .gate, section > .table-wrap, section > .code-wrap { max-width: none; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 1.45rem;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+    margin: 0.5rem 0 1rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 2rem 0 0.6rem;
+  }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); }
+  strong { font-weight: 650; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--sunken);
+    padding: 0.1em 0.36em;
+    border-radius: 2px;
+  }
+  ul, ol { margin: 0 0 1rem 1.15rem; }
+  li { margin-bottom: 0.4rem; }
+
+  /* ---------- code blocks ---------- */
+  .code-wrap { margin: 1.1rem 0; border: 1px solid var(--rule); background: var(--raised); }
+  .code-head {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faint);
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--sunken);
+  }
+  pre.code { overflow-x: auto; padding: 1rem 0.9rem; margin: 0; }
+  pre.code code {
+    background: none;
+    padding: 0;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    white-space: pre;
+    display: block;
+  }
+  .cmt { color: var(--ink-faint); font-style: italic; }
+  .ok { color: var(--pass); }
+  .bad { color: var(--fail); }
+
+  /* ---------- tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 1.4rem 0; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; background: var(--raised); }
+  th, td { text-align: left; padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faint);
+    font-weight: 500;
+    background: var(--sunken);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { font-size: 0.8rem; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+  /* ---------- callouts ---------- */
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 0.9rem 1.1rem;
+    margin: 1.4rem 0;
+    font-size: 0.95rem;
+  }
+  .note.warn { border-left-color: var(--fail); background: var(--fail-soft); }
+  .note-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--ink-soft);
+  }
+  .note p:last-child { margin-bottom: 0; }
+
+  /* ---------- pills ---------- */
+  .pill {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.15em 0.5em;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  .pill.pass { color: var(--pass); }
+  .pill.blocked { color: var(--fail); }
+  .pill.manual { color: var(--ink-faint); }
+
+  /* ---------- gates: the operable unit of this page ---------- */
+  .gate {
+    border: 1px solid var(--rule);
+    background: var(--raised);
+    margin: 1.6rem 0;
+  }
+  .gate-head {
+    display: grid;
+    grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+    gap: 0.9rem;
+    align-items: baseline;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--sunken);
+  }
+  .gate-n {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .gate-title { font-family: var(--mono); font-size: 0.95rem; font-weight: 600; margin: 0; }
+  .gate-body { padding: 0.2rem 1rem 1rem; }
+  .gate-body > p { max-width: var(--measure); }
+  .gate-proves {
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    margin: 0.9rem 0 0;
+  }
+  .gate-proves b {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    display: block;
+    font-weight: 500;
+  }
+  .gate-pass {
+    border-top: 1px solid var(--rule);
+    margin-top: 0.4rem;
+    padding: 0.7rem 1rem;
+    font-size: 0.9rem;
+    background: var(--pass-soft);
+    color: var(--ink);
+  }
+  .gate-pass.is-blocked { background: var(--fail-soft); }
+  .gate-pass b {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-right: 0.5rem;
+    color: var(--ink-soft);
+  }
+
+  footer {
+    margin-top: 5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+    max-width: var(--measure);
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="shell">
+
+  <nav class="rail" aria-label="Verification stages">
+    <h2>Gates</h2>
+    <ol>
+      <li><a href="#g0"><span class="rn">00</span> &nbsp;Preflight</a></li>
+      <li><a href="#g1"><span class="rn">01</span> &nbsp;Template lint</a></li>
+      <li><a href="#g2"><span class="rn">02</span> &nbsp;Template fast tier</a></li>
+      <li><a href="#g3"><span class="rn">03</span> &nbsp;Template slow tier</a></li>
+      <li><a href="#g4"><span class="rn">04</span> &nbsp;Bake a project</a></li>
+      <li><a href="#g5"><span class="rn">05</span> &nbsp;Generated suite</a></li>
+      <li><a href="#g6"><span class="rn">06</span> &nbsp;Generated lint</a></li>
+      <li><a href="#g7"><span class="rn">07</span> &nbsp;No dead branches</a></li>
+      <li><a href="#g8"><span class="rn">08</span> &nbsp;Compose uid</a></li>
+      <li><a href="#g9"><span class="rn">09</span> &nbsp;The live demo</a></li>
+      <li><a href="#g10"><span class="rn">10</span> &nbsp;Live agent</a></li>
+      <li><a href="#g11"><span class="rn">11</span> &nbsp;Graded evals</a></li>
+      <li><a href="#verdict">Merge verdict</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <header class="masthead">
+      <span class="eyebrow">cookiecutter-data-scaffold &middot; pre-merge runbook</span>
+      <h1>Verifying the Agentic Pattern end to end</h1>
+      <p class="standfirst">
+        Twelve gates, ordered so each one can only run once the gate before it has passed.
+        Gates 01&ndash;08 need no API key, no network beyond a package install, and no
+        Docker daemon; they were executed against branch
+        <code>agentic-self-healing-pattern</code> and the outputs below are the real ones.
+        Gates 09 and 10 need Docker or a funded API key and are marked as such &mdash; nobody
+        has run them for you.
+      </p>
+
+      <dl class="facts">
+        <div class="fact"><dt>Gates</dt><dd>12</dd></div>
+        <div class="fact"><dt>Verified</dt><dd>10</dd></div>
+        <div class="fact"><dt>Need an operator</dt><dd>2</dd></div>
+        <div class="fact"><dt>Failing</dt><dd>0</dd></div>
+      </dl>
+    </header>
+
+    <section id="intro">
+      <span class="eyebrow">How to read this</span>
+      <h2>What a gate is</h2>
+      <p>
+        Each gate states what it proves, gives the exact command, shows the output that
+        counts as a pass, and names the failure it exists to catch. A gate that only
+        proves &ldquo;the code runs&rdquo; is not worth a gate; every one below is here
+        because something specific went wrong once, or could.
+      </p>
+      <p>
+        Statuses mean exactly three things.
+        <span class="pill pass">Verified</span> &mdash; run on this branch, output reproduced below.
+        <span class="pill manual">Operator</span> &mdash; needs Docker or a funded API key; not run.
+        <span class="pill blocked">Blocked</span> &mdash; run, and it currently fails.
+      </p>
+    </section>
+
+    <section id="g0">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">00</span>
+          <h3 class="gate-title">Preflight</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            You are on the branch under test, with the toolchain the rest of the gates assume.
+            Both this template and generated projects require Python 3.12+.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; template repo root</div>
+<pre class="code"><code>git rev-parse --abbrev-ref HEAD   <span class="cmt"># agentic-self-healing-pattern</span>
+git status --porcelain            <span class="cmt"># empty: no stray edits under test</span>
+uv --version
+python3 --version                 <span class="cmt"># 3.12 or newer</span>
+docker compose version            <span class="cmt"># only needed from gate 09</span></code></pre>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>The branch is correct and <code>git status --porcelain</code> prints nothing.
+          A dirty tree means you are about to verify something other than what you will merge.
+        </div>
+      </div>
+    </section>
+
+    <section id="g1">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">01</span>
+          <h3 class="gate-title">Template lint</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            The template&rsquo;s own Python is clean. This has to exclude the
+            <code>{{cookiecutter.project_slug}}</code> tree and <code>hooks/</code>, because
+            those are Jinja source and not valid Python until rendered &mdash; the exclusion
+            lives in <code>[tool.ruff] extend-exclude</code>, not just in <code>.gitignore</code>.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; template repo root</div>
+<pre class="code"><code>uv sync
+uv run ruff check .
+
+<span class="ok">All checks passed!</span></code></pre>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b><code>All checks passed!</code>
+        </div>
+      </div>
+    </section>
+
+    <section id="g2">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">02</span>
+          <h3 class="gate-title">Template fast tier</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            Every Pattern combination bakes, the post-gen hook removes what each flag turns
+            off, and the <code>PATTERNS</code> manifest still agrees with the template tree.
+            That last one is enforced by <code>tests/test_pattern_manifest.py</code>, which
+            greps for every <code>cookiecutter.include_x</code> site and asserts the manifest
+            declares exactly those files &mdash; so a Jinja gate added without a manifest entry
+            fails here rather than drifting silently.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; template repo root</div>
+<pre class="code"><code>uv run pytest -m "not slow" -q
+
+<span class="ok">85 passed, 9 deselected in 14.79s</span></code></pre>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>85 passed, 0 failed. The 9 deselected are gate 03.
+        </div>
+      </div>
+    </section>
+
+    <section id="g3">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">03</span>
+          <h3 class="gate-title">Template slow tier &mdash; the DAG-to-healer seam</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            The seam that unit tests cannot see. These bake real projects, run
+            <code>uv sync</code> against the network, and execute a real Airflow DagRun.
+            Four defects once lived here while every unit test on both sides passed: the
+            healer described its own <code>TaskInstance</code> instead of the failed one, the
+            lakehouse-off demo failure never fired, the log path pointed at a directory
+            Airflow does not use, and artifacts landed outside the project.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; template repo root &middot; needs network</div>
+<pre class="code"><code>uv run pytest -m slow -q
+
+<span class="ok">9 passed, 85 deselected in 60.39s</span></code></pre>
+          </div>
+          <p class="gate-proves"><b>Watch for</b>
+            The assertion that matters most is <code>ctx["task_id"] == "load"</code> &mdash;
+            the healer describing the task that failed rather than itself. It is captured
+            from an actual DagRun, which is the only place that bug is visible.</p>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>9 passed. Budget about a minute; it installs dependencies for real.
+        </div>
+      </div>
+    </section>
+
+    <section id="g4">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">04</span>
+          <h3 class="gate-title">Bake a project</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            The template renders from a clean checkout with every Pattern on. Bake from your
+            local branch, not from GitHub &mdash; the point is to test what you are merging.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; anywhere outside the repo</div>
+<pre class="code"><code>cookiecutter /path/to/cookiecutter-data-scaffold --no-input
+cd my_data_project
+
+<span class="cmt"># The post-gen hook should have written a .env pinning your uid:</span>
+cat .env | tail -1            <span class="cmt"># AIRFLOW_UID=501 (yours will differ)</span></code></pre>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>The project renders, and <code>.env</code> ends with your own
+          <code>id -u</code>. On Windows there is no uid and the file is correctly absent.
+        </div>
+      </div>
+    </section>
+
+    <section id="g5">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">05</span>
+          <h3 class="gate-title">The generated suite, offline</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            The central promise: a generated project&rsquo;s tests pass with no API key and no
+            network. Unset the key explicitly &mdash; if it is exported in your shell you are
+            not testing the offline path. This tier covers the replay runner, which drives
+            <em>real</em> tool dispatch from a recorded call list, so a cassette whose
+            <code>propose_patch</code> no longer applies fails honestly instead of being
+            scored as a pass.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; generated project root</div>
+<pre class="code"><code>uv sync
+env -u ANTHROPIC_API_KEY uv run pytest -q
+
+<span class="ok">105 passed, 4 deselected in 1.71s</span></code></pre>
+          </div>
+          <p class="gate-proves"><b>Watch for</b>
+            The 4 deselected are the <code>live</code> and <code>graded</code> markers, held
+            back by <code>addopts</code> in the generated <code>pyproject.toml</code>. If that
+            number is 0, the markers have been lost and gates 10&ndash;11 will silently never run.</p>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>105 passed, 4 deselected, with the key unset.
+        </div>
+      </div>
+    </section>
+
+    <section id="g6">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">06</span>
+          <h3 class="gate-title">The generated project&rsquo;s own lint</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            That a freshly generated project passes the CI it ships with. Its workflow runs
+            <code>uv run ruff check .</code>, so this is the first thing that happens to a user
+            who generates a project and pushes it.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; generated project root</div>
+<pre class="code"><code>uv run ruff check .
+
+<span class="ok">All checks passed!</span></code></pre>
+          </div>
+
+          <div class="note">
+            <span class="note-label">What this used to fail with, and why</span>
+            <p>
+              Until 7 August this reported <strong>Found 15 errors</strong> under ruff 0.16.1.
+              The errors were real but they were a symptom: the generated
+              <code>[tool.ruff]</code> set <code>target-version</code>, <code>line-length</code>
+              and <code>src</code> but never selected any rules, so the enabled set was whatever
+              the installed ruff defaulted to &mdash; <code>--show-settings</code> reported
+              <strong>414 rules enabled</strong> under 0.16.1, against roughly 60 for the classic
+              <code>E4</code>/<code>E7</code>/<code>E9</code>/<code>F</code>. With
+              <code>ruff&gt;=0.6</code> floating and no lockfile, a project nobody had touched
+              could go red because a newer ruff resolved.
+            </p>
+            <p>
+              Fixed by selecting rules explicitly in both <code>pyproject.toml</code> files &mdash;
+              the second of the two options this gate originally proposed. Pin the rules, not the
+              tool: bounding <code>ruff&lt;0.17</code> would freeze users on today&rsquo;s linter
+              to work around a config gap, and would need bumping forever.
+            </p>
+          </div>
+
+          <div class="note warn">
+            <span class="note-label">Why the suite never caught it</span>
+            <p>
+              <code>tests/conftest.py</code> lints bakes with <code>uvx ruff@0.15.20</code> while a
+              generated project resolves <code>ruff&gt;=0.6</code> to 0.16.1 &mdash; so
+              <code>test_full_bake_all_patterns_lints_clean</code> was linting with a different
+              ruff than any user gets, and stayed green for the whole stretch where every bake was
+              failing. The pin now tracks what users resolve.
+            </p>
+            <p>
+              Worth recognising the shape: a cheap tier substituting its own stable answer for
+              exactly the variable that breaks in production. The same shape hid the missing
+              <code>list_repo_files</code> tool (cassettes hard-code the file path that live
+              path-discovery could not derive) and a grader schema that was a 400 on arrival
+              (<code>MagicMock</code> stands in for the API, so its validator never saw the
+              schema). Three instances in one week.
+            </p>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>Clean across four cookiecutter answer combinations &mdash; defaults,
+          no-agentic, no-lakehouse, and minimal &mdash; because two of the corrected import
+          blocks are Jinja-conditional and only some answers render them.
+        </div>
+      </div>
+    </section>
+
+    <section id="g7">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">07</span>
+          <h3 class="gate-title">No dead branches with the Pattern off</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            The template&rsquo;s headline promise &mdash; turn a Pattern off and nothing of it
+            survives, including the parts that are easy to forget, like ignore rules for
+            directories that no longer exist.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; bake with the Pattern off</div>
+<pre class="code"><code>cookiecutter /path/to/cookiecutter-data-scaffold --no-input include_agentic=false
+cd my_data_project
+
+test ! -d src/my_data_project/agentic  &amp;&amp; echo "<span class="ok">ok: no agentic package</span>"
+test ! -d evals                        &amp;&amp; echo "<span class="ok">ok: no evals</span>"
+test ! -d artifacts                    &amp;&amp; echo "<span class="ok">ok: no artifacts dir</span>"
+grep -q artifacts .gitignore           || echo "<span class="ok">ok: no artifacts ignore rule</span>"
+grep -q anthropic pyproject.toml       || echo "<span class="ok">ok: no anthropic dependency</span>"
+grep -q artifacts docker-compose.yml   || echo "<span class="ok">ok: no artifacts mount</span>"</code></pre>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>All six print <code>ok</code>. Every one was verified on this branch.
+        </div>
+      </div>
+    </section>
+
+    <section id="g8">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">08</span>
+          <h3 class="gate-title">Compose resolves a writable uid, with or without .env</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            That a fresh clone works. <code>.env</code> is gitignored, so it is absent on any
+            machine that did not run cookiecutter. The <code>airflow-init</code> service runs
+            as root and chowns the bind mounts to whichever uid airflow will use, so the demo
+            does not depend on that file existing. Both services must resolve the
+            <em>same</em> uid &mdash; if they diverge, init hands the mounts to a uid that is
+            not the one writing.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; generated project root</div>
+<pre class="code"><code>docker compose config | grep -E 'user:|chown'
+mv .env .env.bak                    <span class="cmt"># simulate a fresh clone</span>
+docker compose config | grep -E 'user:|chown'
+mv .env.bak .env</code></pre>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>State</th><th><code>airflow-init</code> chowns to</th><th><code>airflow-standalone</code> runs as</th><th>Agree</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>As generated</td><td class="num"><code>501:0</code></td><td class="num"><code>501:0</code></td><td>yes</td></tr>
+                <tr><td><code>.env</code> removed</td><td class="num"><code>50000:0</code></td><td class="num"><code>50000:0</code></td><td>yes</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="note">
+            <span class="note-label">A caveat worth stating</span>
+            <p>
+              This failure is Linux-only. Docker Desktop on macOS maps bind-mount ownership
+              through its VM, so uid 50000 can already write and the bug cannot be reproduced
+              there. If you are verifying on a Mac, gate 08 checks that the wiring is
+              <em>consistent</em>; only a Linux host proves the mounts are writable.
+            </p>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>The two uids match in both states. Your first column will show your own uid.
+        </div>
+      </div>
+    </section>
+
+    <section id="g9">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">09</span>
+          <h3 class="gate-title">The demo, end to end, in Docker</h3>
+          <span class="pill manual">Operator</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            The whole loop as a user meets it: a task fails for a real reason, the healer
+            wakes up, and a patch lands on your host filesystem. This is the gate the slow
+            tier approximates but cannot replace, because only this one exercises the actual
+            container, the actual bind mounts, and the Airflow UI.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; generated project root &middot; needs Docker</div>
+<pre class="code"><code>docker compose up -d airflow-standalone
+
+<span class="cmt"># airflow-init runs first and exits 0; standalone waits for it.</span>
+docker compose ps -a
+
+<span class="cmt"># Open http://localhost:8080 and trigger example_events_dag</span>
+<span class="cmt"># with this run config (any Pattern combination with Batch):</span>
+<span class="cmt">#   {"failure_mode": "schema_drift"}</span></code></pre>
+          </div>
+          <p>Then check the four things the run is supposed to produce:</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; after the DagRun finishes</div>
+<pre class="code"><code>ls artifacts/*.patch          <span class="cmt"># a unified diff, ready to git apply</span>
+ls artifacts/*.json           <span class="cmt"># proposed PR title, body, confidence</span>
+git apply --check artifacts/*.patch   <span class="cmt"># the patch actually applies</span>
+ls -l logs/                   <span class="cmt"># owned by you, not by 50000</span></code></pre>
+          </div>
+
+          <div class="note warn">
+            <span class="note-label">A bug this gate found: the stack would not start at all</span>
+            <p>
+              On a macOS host running colima, <code>airflow-init</code> exited 1 with
+              <em>chown: changing ownership of &lsquo;/sources/logs&rsquo;: Permission
+              denied</em>, and <code>airflow-standalone</code> never started because it depends
+              on init via <code>service_completed_successfully</code>. Init already ran as root,
+              so this was not a missing privilege &mdash; root was being refused.
+            </p>
+            <p>
+              Docker backed by a VM (colima, Docker Desktop, Rancher, OrbStack) shares host
+              directories through a filesystem that denies <code>chown</code> to everyone
+              including root, and does not need it: the share already presents its files as
+              writable to the container user whatever uid it runs as. Confirmed on the failing
+              host, where a container running as <code>501:0</code> wrote to the mount happily
+              while root could not chown it. The command chained
+              <code>mkdir &amp;&amp; chown</code>, so a refusal that changed nothing was fatal.
+            </p>
+            <p>
+              The chown is now best-effort and a writability probe decides. The probe runs under
+              <code>setpriv --reuid</code> as the uid airflow will actually use, never as root
+              &mdash; a root probe passes on precisely the unwritable mount it exists to catch,
+              trading a loud false failure for a silent false pass. Both outcomes were checked on
+              a real filesystem rather than on the VM share, whose permissions are virtualised
+              away: a root-owned 755 directory probed as uid 12345 exits 1 with the FATAL
+              message, and the same directory after a successful chown exits 0.
+            </p>
+          </div>
+
+          <div class="note">
+            <span class="note-label">Verified on this host &mdash; up to the trigger</span>
+            <p>
+              <code>airflow-init</code> exits 0 with a note that chown was declined; the stack
+              comes up; <code>curl localhost:8080</code> returns <b>HTTP 200</b>;
+              <code>example_events_dag</code> registers from <code>example_dag.py</code> with no
+              import errors; and the container&rsquo;s logs appear on the host owned by
+              <code>501:20</code> rather than 50000, which is what the mount is for.
+            </p>
+            <p>
+              The DagRun itself is still yours to make: the healing task calls the API and needs
+              a key. That is the only reason this gate is not marked Verified.
+            </p>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b><code>load</code> ends <em>failed</em>, <code>heal_on_failure</code> ends
+          <em>success</em>, exactly one <code>.patch</code> and one <code>.json</code> appear,
+          and the patch applies cleanly. Nothing is applied for you &mdash; the agent proposes,
+          you merge.
+        </div>
+      </div>
+    </section>
+
+    <section id="g10">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">10</span>
+          <h3 class="gate-title">The live agent</h3>
+          <span class="pill manual">Operator</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            That the real tool loop works against the real API &mdash; tool specs accepted,
+            multi-turn dispatch, and a diagnosis the model actually produced rather than one
+            replayed from a cassette. Costs money and is non-deterministic, which is exactly
+            why it does not gate CI.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; generated project root &middot; needs ANTHROPIC_API_KEY</div>
+<pre class="code"><code>export ANTHROPIC_API_KEY=sk-ant-...
+uv run pytest -m live -q</code></pre>
+          </div>
+          <p class="gate-proves"><b>Watch for</b>
+            Without the key these skip rather than fail. A run of &ldquo;0 selected&rdquo; means
+            the marker is missing, not that everything passed.</p>
+
+          <div class="note warn">
+            <span class="note-label">This gate has already earned its keep</span>
+            <p>
+              It is the gate that caught the agent having no way to <em>find</em> a file. A
+              <code>FailureContext</code> names a <code>dag_id</code> and a <code>task_id</code>,
+              never a path, and the DAG id <code>example_events_dag</code> does not match the
+              filename <code>example_dag.py</code> &mdash; so the agent burned all twelve
+              iterations on seventeen failed <code>read_repo_file</code> guesses, degenerating to
+              casing permutations, then correctly refused to speculate and set confidence low.
+              Both required criteria failed from that single cause.
+            </p>
+            <p>
+              Replay could never have caught it: the cassettes hard-code the correct path, so
+              <code>ReplayRunner</code> hands the agent the answer to the exact question the live
+              agent fails at. A <code>list_repo_files</code> tool closed it.
+            </p>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>The live tests pass, and the diagnosis names the real offending field
+          rather than something generic. Not re-run under <code>-m live</code> since the fix,
+          though gate 11 drives the identical loop through <code>ClaudeRunner</code> and produced
+          a correct high-confidence patch on every case.
+        </div>
+      </div>
+    </section>
+
+    <section id="g11">
+      <div class="gate">
+        <div class="gate-head">
+          <span class="gate-n">11</span>
+          <h3 class="gate-title">Graded evals</h3>
+          <span class="pill pass">Verified</span>
+        </div>
+        <div class="gate-body">
+          <p class="gate-proves"><b>Proves</b>
+            Agent <em>quality</em>, not just plumbing: an LLM grader scores a live run against
+            the per-criterion expectations declared in <code>evals/cases/*.yaml</code> and
+            writes a report you can read.</p>
+          <div class="code-wrap">
+            <div class="code-head">shell &middot; generated project root &middot; needs ANTHROPIC_API_KEY</div>
+<pre class="code"><code>uv run pytest -m graded -q
+ls evals/reports/             <span class="cmt"># timestamped .md and .json per run</span></code></pre>
+          </div>
+
+          <div class="note warn">
+            <span class="note-label">Two bugs this gate found, both in the grader</span>
+            <p>
+              First run: <code>BadRequestError</code> &mdash;
+              <em>for &lsquo;integer&rsquo; type, properties maximum, minimum are not
+              supported</em>. Structured outputs accept only a subset of JSON Schema, and
+              numerical constraints are rejected, so the grade schema was a 400 before the model
+              was ever consulted. Score bounds are now an <code>enum</code> of
+              <code>[0&hellip;5]</code>, which is a supported keyword and the same constraint.
+            </p>
+            <p>
+              Second run: <em>grader skipped required criteria</em>. It had skipped nothing
+              &mdash; it graded all six criteria and scored the agent 5/5 &mdash; but
+              <code>criterion</code> was a free-form string, so it wrote labels rather than
+              identifiers, and no two runs agreed: <code>tools_called</code> came back as
+              <code>'tools_called must_call'</code> on one case and <code>'tools_called:
+              must_call all of [read_task_log, read_repo_file, propose_patch]'</code> on the
+              other. The schema is now built per case, with <code>criterion</code> an enum of
+              that case&rsquo;s own rubric keys.
+            </p>
+            <p>
+              Both fixes are the same move: make the wrong answer unrepresentable rather than ask
+              for the right one. Both are now guarded by tests that need no API key &mdash; one
+              walks every output schema for keywords the subset rejects, the other asserts every
+              criterion named in a case&rsquo;s <code>score</code> is nameable from its
+              <code>expect</code>. Each was verified to fail against the exact defect it
+              describes before being kept.
+            </p>
+          </div>
+        </div>
+        <div class="gate-pass">
+          <b>Pass</b>Both cases meet their <code>required</code> criteria; the agent scored 5/5
+          on each. Advisory criteria may miss; read the report rather than only the exit code.
+          Run by the operator on 7 August &mdash; console output not reproduced here, unlike the
+          gates above, because it was reported rather than captured.
+        </div>
+      </div>
+    </section>
+
+    <section id="verdict">
+      <span class="eyebrow">Decision</span>
+      <h2>Merge verdict</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Gate</th><th>Status</th><th>Blocks merge?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>00&ndash;08</td><td><span class="pill pass">Verified</span></td><td>No &mdash; all pass</td></tr>
+            <tr><td>09 &middot; Docker demo</td><td><span class="pill manual">Operator</span></td><td>Only the trigger remains &mdash; the stack itself is verified, and starting it was broken until now</td></tr>
+            <tr><td>10 &middot; live agent</td><td><span class="pill manual">Operator</span></td><td>No &mdash; it never gated CI by design</td></tr>
+            <tr><td>11 &middot; graded evals</td><td><span class="pill pass">Verified</span></td><td>No &mdash; passes; found two grader bugs on the way</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The recommendation: trigger a DagRun to finish gate 09. Its stack is now verified to
+        start &mdash; which it did not, on a VM-backed Docker, until the chown was made
+        best-effort &mdash; so what remains is the healing run itself, which needs a key. Gate 06
+        was blocked and is now fixed at its source rather than worked around. Gate 10 is worth
+        one re-run for completeness, though gate 11 already drives the same live loop.
+      </p>
+
+      <div class="note">
+        <span class="note-label">If a gate fails</span>
+        <p>
+          Fix forward rather than skipping. Every gate here exists because the thing it checks
+          broke once, or is the only place a class of bug is visible. A gate you deselect to
+          get a green run is a gate that was doing its job.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      Runbook for branch <code>agentic-self-healing-pattern</code> &middot; 3 August 2026,
+      revised 7 August. Gates 00&ndash;08 executed on macOS with uv and ruff 0.16.1 in both the
+      template and a generated project, outputs quoted verbatim. Gate 11 run by the operator;
+      outcome reported rather than captured, and marked as such. Gates 09 and 10 not run.
+    </footer>
+
+  </main>
+</div>

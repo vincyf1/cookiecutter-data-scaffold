@@ -91,6 +91,9 @@ cookiecutter gh:vincyf1/cookiecutter-data-scaffold --no-input \
 | `dbt_duckdb_version` | `1.8` | Pinned `dbt-duckdb` version in the generated project |
 | `sqlfluff_version` | `3.1.0` | Pinned `sqlfluff` version in the generated project |
 | `airflow_version` | `3.2.0` | Pinned `apache-airflow` version (also used as the Docker image tag for the Batch demo service) |
+| `include_agentic` | `false` | Scaffold the agentic self-healing loop (requires `include_batch`; opt-in because it calls a hosted model) |
+| `agentic_model` | `claude-haiku-4-5` | Model used for diagnosis |
+| `agentic_grader_model` | `claude-haiku-4-5` | Model used by the eval grader |
 
 Patterns are independent and combinable — disabling one never requires or excludes another. See the README's [Patterns](../README.md#patterns) section for what each one scaffolds.
 
@@ -125,6 +128,49 @@ docker compose up
 
 If neither Pattern is enabled, `docker-compose.yml` still exists but declares no services.
 
+### Agentic Pattern
+
+The Agentic Pattern requires the Batch Pattern. Generating with
+`include_agentic=true include_batch=false` is rejected at generation time —
+there is no DAG to heal.
+
+```bash
+cookiecutter gh:vincyf1/cookiecutter-data-scaffold --no-input \
+  project_name="Orders Pipeline" \
+  agentic_model=claude-haiku-4-5
+```
+
+**No API key is needed to generate, install, or test the project.** The
+generated test suite runs entirely against a fake agent runner and recorded
+replays, so `uv run pytest` works offline.
+
+An `ANTHROPIC_API_KEY` is needed only to run the agent for real:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+docker compose up -d airflow-standalone
+```
+
+Then trigger `example_events_dag` from the Airflow UI with the config
+`{"failure_mode": "schema_drift"}`. The `load` task fails, `heal_on_failure`
+runs, and the results land in the generated project:
+
+| Path | Contents |
+| --- | --- |
+| `artifacts/<trace_id>.patch` | Unified diff, ready for `git apply` |
+| `artifacts/<trace_id>.json` | Proposed PR title, body, confidence, and edits |
+| `artifacts/traces/<trace_id>.json` | The full agent run as a JSON array (when Lakehouse is off) |
+| `agent_traces` table | The same JSON array, in DuckDB (when Lakehouse is on) |
+
+**Troubleshooting**
+
+| Symptom | Cause |
+| --- | --- |
+| `heal_on_failure` is skipped | `load` succeeded. The heal task uses `trigger_rule=ALL_FAILED`. |
+| Healing task fails with an auth error | `ANTHROPIC_API_KEY` is not visible to the Airflow worker. Export it before `docker compose up`. |
+| Trace missing but the patch exists | Trace writes are non-blocking by design; check the task log for a `failed to persist agent trace` warning. |
+| `uv run pytest` tries to call the API | Marker filtering was bypassed. The `live` and `graded` tiers are deselected by `addopts` in `pyproject.toml`. |
+
 ## 6. Developing the template itself
 
 If you're contributing to `cookiecutter-data-scaffold` rather than generating a project from it, clone the repo directly:
@@ -154,4 +200,4 @@ uv run ruff check .
 - **Python version errors during `uv sync`** — check `python3 --version`; both this template and generated projects require 3.12+. `uv` can install a matching interpreter for you with `uv python install 3.12`.
 - **Port already in use (`8080` or `9092`)** — another process (often a previous `docker compose up`) is still bound to that port. Run `docker compose down` in the generated project, or stop the conflicting process, before retrying.
 - **Stale or broken `.venv`** — delete it and resync: `rm -rf .venv && uv sync`.
-- **Pattern's files missing or unexpected extras present** — double-check the flags you baked with (`include_batch`, `include_streaming`, `include_lakehouse`, `include_dbt`); each Pattern only scaffolds files declared for it in [`hooks/post_gen_project.py`](../hooks/post_gen_project.py).
+- **Pattern's files missing or unexpected extras present** — double-check the flags you baked with (`include_batch`, `include_streaming`, `include_lakehouse`, `include_dbt`, `include_agentic`); each Pattern only scaffolds files declared for it in [`hooks/post_gen_project.py`](../hooks/post_gen_project.py).

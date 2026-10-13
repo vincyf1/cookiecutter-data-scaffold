@@ -1,0 +1,1133 @@
+<title>The Agentic Self-Healing Pattern</title>
+
+<style>
+  :root {
+    --ground:      #F2F5F6;
+    --raised:      #FFFFFF;
+    --sunken:      #E8EDEE;
+    --ink:         #101A1D;
+    --ink-soft:    #46585C;
+    --ink-faint:   #7C8D91;
+    --rule:        #D3DCDE;
+    --accent:      #0B6B72;
+    --accent-soft: #E0EDEE;
+    --fail:        #A8560C;
+    --fail-soft:   #F6EADC;
+    --pass:        #2F6B4F;
+    --pass-soft:   #E2EDE7;
+
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --measure: 68ch;
+    --gap: 1.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:      #0D1416;
+      --raised:      #141F22;
+      --sunken:      #0A1012;
+      --ink:         #DCE5E6;
+      --ink-soft:    #9AACAF;
+      --ink-faint:   #6A7C80;
+      --rule:        #253437;
+      --accent:      #4FB3B8;
+      --accent-soft: #12292C;
+      --fail:        #D18B3D;
+      --fail-soft:   #2A2018;
+      --pass:        #5FA47E;
+      --pass-soft:   #16241E;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0D1416;
+    --raised:      #141F22;
+    --sunken:      #0A1012;
+    --ink:         #DCE5E6;
+    --ink-soft:    #9AACAF;
+    --ink-faint:   #6A7C80;
+    --rule:        #253437;
+    --accent:      #4FB3B8;
+    --accent-soft: #12292C;
+    --fail:        #D18B3D;
+    --fail-soft:   #2A2018;
+    --pass:        #5FA47E;
+    --pass-soft:   #16241E;
+  }
+
+  :root[data-theme="light"] {
+    --ground:      #F2F5F6;
+    --raised:      #FFFFFF;
+    --sunken:      #E8EDEE;
+    --ink:         #101A1D;
+    --ink-soft:    #46585C;
+    --ink-faint:   #7C8D91;
+    --rule:        #D3DCDE;
+    --accent:      #0B6B72;
+    --accent-soft: #E0EDEE;
+    --fail:        #A8560C;
+    --fail-soft:   #F6EADC;
+    --pass:        #2F6B4F;
+    --pass-soft:   #E2EDE7;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 1.5rem 6rem;
+  }
+
+  @media (min-width: 1100px) {
+    .shell { grid-template-columns: 15rem minmax(0, 1fr); gap: 3.5rem; }
+  }
+
+  /* ---------- section rail ---------- */
+  .rail { display: none; }
+  @media (min-width: 1100px) {
+    .rail {
+      display: block;
+      position: sticky;
+      top: 0;
+      align-self: start;
+      padding-top: 7.5rem;
+      max-height: 100vh;
+      overflow-y: auto;
+    }
+  }
+  .rail h2 {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink-faint);
+    margin-bottom: 0.9rem;
+    font-weight: 500;
+  }
+  .rail ol { list-style: none; display: flex; flex-direction: column; gap: 0.45rem; }
+  .rail a {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-left: 2px solid var(--rule);
+    padding-left: 0.7rem;
+    display: block;
+    line-height: 1.4;
+  }
+  .rail a:hover, .rail a:focus-visible { color: var(--accent); border-left-color: var(--accent); }
+
+  main { min-width: 0; }
+
+  /* ---------- masthead ---------- */
+  .masthead { padding: 5rem 0 2.5rem; border-bottom: 1px solid var(--rule); }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .masthead h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.9rem, 4.4vw, 2.9rem);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    margin: 0.9rem 0 1.1rem;
+    text-wrap: balance;
+    max-width: 22ch;
+  }
+  .standfirst { max-width: var(--measure); color: var(--ink-soft); font-size: 1.08rem; }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 2.5rem;
+  }
+  .fact { background: var(--ground); padding: 0.95rem 1.1rem; }
+  .fact dt {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+  }
+  .fact dd {
+    font-family: var(--mono);
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .fact dd small { font-size: 0.72rem; font-weight: 400; color: var(--ink-soft); letter-spacing: 0; }
+
+  /* ---------- sections ---------- */
+  section { padding-top: 3.5rem; }
+  section > * { max-width: var(--measure); }
+  section > .bleed, section > figure, section > .table-wrap, section > .seq { max-width: none; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 1.45rem;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+    margin: 0.5rem 0 1rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 2rem 0 0.6rem;
+    color: var(--ink);
+  }
+  p { margin-bottom: 1rem; }
+  p + h3 { margin-top: 2.2rem; }
+  a { color: var(--accent); }
+  strong { font-weight: 650; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--sunken);
+    padding: 0.1em 0.36em;
+    border-radius: 2px;
+  }
+  ul, ol { margin: 0 0 1rem 1.15rem; }
+  li { margin-bottom: 0.4rem; }
+
+  /* ---------- code blocks ---------- */
+  .code-wrap { margin: 1.4rem 0; border: 1px solid var(--rule); background: var(--raised); }
+  .code-head {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faint);
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--sunken);
+  }
+  pre.code { overflow-x: auto; padding: 1rem 0.9rem; }
+  pre.code code {
+    background: none;
+    padding: 0;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    white-space: pre;
+    display: block;
+  }
+  .cmt { color: var(--ink-faint); font-style: italic; }
+  .add { color: var(--pass); }
+  .del { color: var(--fail); }
+
+  /* ---------- tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 1.4rem 0; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; background: var(--raised); }
+  th, td { text-align: left; padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faint);
+    font-weight: 500;
+    background: var(--sunken);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { font-size: 0.8rem; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+  /* ---------- trace sequence ---------- */
+  .seq { margin: 1.6rem 0; border: 1px solid var(--rule); background: var(--raised); }
+  .seq-row {
+    display: grid;
+    grid-template-columns: 3rem 8.5rem 1fr;
+    gap: 0.9rem;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 0.81rem;
+    align-items: baseline;
+  }
+  .seq-row:last-child { border-bottom: none; }
+  .seq-n { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .seq-kind { color: var(--accent); }
+  .seq-note { font-family: var(--sans); color: var(--ink-soft); font-size: 0.85rem; }
+
+  /* ---------- callouts ---------- */
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 0.9rem 1.1rem;
+    margin: 1.4rem 0;
+    font-size: 0.95rem;
+  }
+  .note.warn { border-left-color: var(--fail); background: var(--fail-soft); }
+  .note-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--ink-soft);
+  }
+  .note p:last-child { margin-bottom: 0; }
+
+  /* ---------- pills ---------- */
+  .pill {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.15em 0.5em;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .pill.gate { color: var(--pass); }
+  .pill.nogate { color: var(--fail); }
+
+  figure { margin: 1.6rem 0; }
+
+  /* ---------- flow diagram (hand-built: no library, renders anywhere) ---------- */
+  .flow { margin: 1.6rem 0; }
+  .flow-step { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); }
+  .flow-mark { position: relative; }
+  .flow-mark::before {
+    content: "";
+    position: absolute;
+    left: 0.47rem;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--rule);
+  }
+  .flow-step:first-child .flow-mark::before { top: 1.05rem; }
+  .flow-step:last-child .flow-mark::before { bottom: auto; height: 1.05rem; }
+  .flow-mark::after {
+    content: "";
+    position: absolute;
+    left: 0.16rem;
+    top: 0.78rem;
+    width: 0.63rem;
+    height: 0.63rem;
+    background: var(--accent);
+    border-radius: 1px;
+  }
+  .flow-body { padding: 0 0 0.7rem 0.15rem; }
+  .flow-node {
+    border: 1px solid var(--rule);
+    background: var(--raised);
+    padding: 0.6rem 0.85rem;
+  }
+  .flow-node .n-title {
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .flow-node .n-sub {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    margin: 0.15rem 0 0;
+  }
+  .flow-edge {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    margin: 0.5rem 0 0.15rem;
+  }
+  .flow-edge::before { content: "\2193\00a0"; color: var(--ink-faint); }
+  .flow-fan {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+    gap: 0.45rem;
+    margin-top: 0.5rem;
+  }
+  .flow-fan .flow-node { background: var(--sunken); }
+  .flow-fan .n-title { font-size: 0.79rem; font-weight: 500; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    margin-top: 0.6rem;
+    max-width: var(--measure);
+  }
+
+  footer {
+    margin-top: 5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+    max-width: var(--measure);
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="shell">
+
+  <nav class="rail" aria-label="Sections">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#problem">The problem</a></li>
+      <li><a href="#shape">Shape of the system</a></li>
+      <li><a href="#flow">One healing run</a></li>
+      <li><a href="#failure">The seeded failure</a></li>
+      <li><a href="#tools">The tool allowlist</a></li>
+      <li><a href="#runner">The runner seam</a></li>
+      <li><a href="#trace">The trace format</a></li>
+      <li><a href="#publish">Publishing the patch</a></li>
+      <li><a href="#evals">The four eval tiers</a></li>
+      <li><a href="#template">Living inside a template</a></li>
+      <li><a href="#provider">Provider coupling</a></li>
+      <li><a href="#gaps">Known gaps</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <header class="masthead">
+      <span class="eyebrow">cookiecutter-data-scaffold &middot; Pattern 5</span>
+      <h1>The Agentic Self-Healing Pattern</h1>
+      <p class="standfirst">
+        When a batch DAG task fails, a bounded agent reads the failure logs and the
+        repository source, diagnoses the root cause, and writes a patch for a human to
+        review. Nothing is applied automatically. The entire run is recorded as one JSON
+        array so it can be queried, scored, and argued with afterwards.
+      </p>
+
+      <dl class="facts">
+        <div class="fact"><dt>Runtime code</dt><dd>1,242 <small>lines</small></dd></div>
+        <div class="fact"><dt>Eval suite</dt><dd>815 <small>lines</small></dd></div>
+        <div class="fact"><dt>Agent tools</dt><dd>3</dd></div>
+        <div class="fact"><dt>Modules importing Airflow</dt><dd>1</dd></div>
+        <div class="fact"><dt>Tests offline</dt><dd>104</dd></div>
+      </dl>
+    </header>
+
+    <section id="problem">
+      <span class="eyebrow">Why</span>
+      <h2>The problem this actually solves</h2>
+      <p>
+        A data pipeline fails at 3am. The exception is in a log; the cause is in a source
+        file; the fix is three characters. The expensive part is not the fix — it is the
+        round trip between noticing, finding the log, reading the schema, and working out
+        which of the two sides is wrong.
+      </p>
+      <p>
+        This Pattern compresses that round trip into an artifact waiting for you in the
+        morning: a diagnosis, a unified diff, and a full record of how the agent got there.
+        The deliberate limit is that it stops at the artifact. The agent proposes; you merge.
+      </p>
+      <div class="note">
+        <span class="note-label">Design stance</span>
+        <p>
+          Every capability the agent does <em>not</em> have is load-bearing. It cannot run
+          shell commands, cannot write to disk, and cannot reach outside the project root.
+          A bad run costs an unused <code>.patch</code> file, not a corrupted repository.
+        </p>
+      </div>
+    </section>
+
+    <section id="shape">
+      <span class="eyebrow">Architecture</span>
+      <h2>Shape of the system</h2>
+      <p>
+        Six modules under <code>src/&lt;slug&gt;/agentic/</code>, each with one
+        responsibility. Two of them are protocols rather than implementations — those are
+        the seams the whole design rests on.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Module</th><th class="num">Lines</th><th>Responsibility</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>contracts.py</code></td><td class="num">95</td><td>Typed records only. No behaviour beyond one serialiser.</td></tr>
+            <tr><td><code>tools.py</code></td><td class="num">298</td><td>The four tools and their path confinement. The security boundary.</td></tr>
+            <tr><td><code>runner.py</code></td><td class="num">280</td><td><code>AgentRunner</code> protocol plus the fake and live implementations.</td></tr>
+            <tr><td><code>tracing.py</code></td><td class="num">230</td><td>Recording a run and persisting it. Never fails the task.</td></tr>
+            <tr><td><code>publisher.py</code></td><td class="num">205</td><td>Turning a result into something reviewable.</td></tr>
+            <tr><td><code>dags/healing_dag.py</code></td><td class="num">225</td><td>The <em>only</em> module that imports Airflow.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The two seams</h3>
+      <p>
+        <strong><code>AgentRunner</code></strong> isolates every source of non-determinism.
+        Its signature is <code>run(ctx, recorder) -&gt; AgentResult</code>. Above that line,
+        everything is ordinary Python you can test with plain pytest. Below it sits a live
+        model call.
+      </p>
+      <p>
+        <strong><code>AgentResult</code></strong> is a single artifact with three consumers:
+        the publisher renders its <code>edits</code> into a diff, the trace sink persists its
+        <code>elements</code>, and the eval suite asserts on all three fields. One producer,
+        three consumers, no back-channels between them.
+      </p>
+
+      <div class="note">
+        <span class="note-label">Why one Airflow import matters</span>
+        <p>
+          Because only <code>healing_dag.py</code> imports Airflow, the other five modules
+          are unit-testable without a scheduler or a metadata database. That single
+          constraint is what makes 104 tests run offline in seven seconds. It is verified
+          mechanically, not by convention — a grep across the module is part of review.
+        </p>
+      </div>
+    </section>
+
+    <section id="flow">
+      <span class="eyebrow">Runtime</span>
+      <h2>One healing run, end to end</h2>
+
+      <figure>
+        <div class="flow">
+
+          <div class="flow-step">
+            <div class="flow-mark"></div>
+            <div class="flow-body">
+              <div class="flow-node">
+                <p class="n-title">example_events_dag</p>
+                <p class="n-sub">extract &rarr; load</p>
+              </div>
+              <p class="flow-edge">load raises SchemaDriftError</p>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-mark"></div>
+            <div class="flow-body">
+              <div class="flow-node">
+                <p class="n-title">heal_on_failure</p>
+                <p class="n-sub">trigger_rule = ALL_FAILED &middot; same DAG run</p>
+              </div>
+              <p class="flow-edge">assemble the failure description</p>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-mark"></div>
+            <div class="flow-body">
+              <div class="flow-node">
+                <p class="n-title">build_failure_context</p>
+                <p class="n-sub">dag_id &middot; run_id &middot; failed_task_id &middot; exception &middot; log path</p>
+              </div>
+              <p class="flow-edge">hand it to the runner</p>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-mark"></div>
+            <div class="flow-body">
+              <div class="flow-node">
+                <p class="n-title">AgentRunner.run</p>
+                <p class="n-sub">bounded loop, max 12 iterations</p>
+              </div>
+              <div class="flow-fan">
+                <div class="flow-node">
+                  <p class="n-title">read_task_log</p>
+                  <p class="n-sub">bounded tail</p>
+                </div>
+                <div class="flow-node">
+                  <p class="n-title">read_repo_file</p>
+                  <p class="n-sub">confined to project root</p>
+                </div>
+                <div class="flow-node">
+                  <p class="n-title">propose_patch</p>
+                  <p class="n-sub">stages, never writes</p>
+                </div>
+              </div>
+              <p class="flow-edge">one typed result</p>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-mark"></div>
+            <div class="flow-body">
+              <div class="flow-node">
+                <p class="n-title">AgentResult</p>
+                <p class="n-sub">diagnosis + edits + elements</p>
+              </div>
+              <p class="flow-edge">two consumers, neither aware of the other</p>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-mark"></div>
+            <div class="flow-body">
+              <div class="flow-fan">
+                <div class="flow-node">
+                  <p class="n-title">TraceSink.write</p>
+                  <p class="n-sub">non-blocking &middot; DuckDB or JSONL</p>
+                </div>
+                <div class="flow-node">
+                  <p class="n-title">PRPublisher.publish</p>
+                  <p class="n-sub">artifacts/&lt;trace_id&gt;.patch</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <figcaption>
+          The heal task runs in the same DAG run as the failure — same worker, same log
+          directory — which is what lets the whole loop be exercised by a test rather than
+          needing a live scheduler and cross-DAG API credentials.
+        </figcaption>
+      </figure>
+
+      <h3>The orchestrator, verbatim</h3>
+      <p>
+        <code>run_healing</code> takes its three collaborators as arguments. That is the
+        whole reason the loop is testable: production passes nothing and gets live
+        implementations; tests pass fakes and get determinism.
+      </p>
+
+      <div class="code-wrap">
+        <div class="code-head">src/&lt;slug&gt;/agentic/dags/healing_dag.py</div>
+        <pre class="code"><code>def run_healing(
+    ctx: FailureContext,
+    runner=None,
+    sink=None,
+    publisher=None,
+) -> tuple[Trace, PublishedPatch]:
+    <span class="cmt">"""Diagnose, trace, and publish. Collaborators are injectable for tests."""</span>
+    root = Path(ctx.project_root)
+    runner = runner or ClaudeRunner()
+    <span class="cmt"># Both defaults are rooted at the project, not at the worker's CWD.
+    # LocalPatchPublisher and GitHubPublisher would otherwise disagree about
+    # where artifacts live, and the worker's CWD is not a mounted volume, so
+    # CWD-relative artifacts never reach the host.</span>
+    sink = sink or default_sink(root)
+    publisher = publisher or default_publisher(root)
+
+    recorder = TraceRecorder(...)
+    tool_ctx = ToolContext(project_root=root, log_path=Path(ctx.log_path))
+
+    try:
+        result = runner.run(ctx, recorder)
+    except Exception:
+        <span class="cmt"># finish() in the failure path too, so a crashed run still yields a
+        # well-formed array ending in status "error".</span>
+        write_trace_safely(sink, recorder.finish("error"))
+        raise
+
+    tool_ctx.edits = list(result.edits)
+    trace = recorder.finish("ok")
+    write_trace_safely(sink, trace)
+    published = publisher.publish(trace.trace_id, result, tool_ctx)
+    return trace, published</code></pre>
+      </div>
+
+      <p>
+        Three details in that function are doing more work than they look like they are.
+        The <code>except</code> block calls <code>finish("error")</code> before re-raising,
+        so a crashed run still leaves a well-formed array rather than nothing.
+        <code>write_trace_safely</code> swallows sink failures — a schema failure in the
+        <em>trace table</em> must not take down the thing that fixes schema failures. And
+        both defaults are rooted at <code>ctx.project_root</code> rather than the worker's
+        current directory, which is not a mounted volume.
+      </p>
+    </section>
+
+    <section id="failure">
+      <span class="eyebrow">The demo</span>
+      <h2>The seeded failure</h2>
+      <p>
+        The demo DAG carries a <code>failure_mode</code> parameter defaulting to
+        <code>"none"</code>, so the shipped behaviour is unchanged until you ask for a
+        failure. Set it to <code>schema_drift</code> and <code>extract()</code> emits a
+        record with a renamed field:
+      </p>
+
+      <div class="code-wrap">
+        <div class="code-head">the drift</div>
+        <pre class="code"><code><span class="del">- return [{"id": 1, "customer_name": "example"}]  # emitted</span>
+<span class="add">+ class Event: id: int; name: str  # declared</span></code></pre>
+      </div>
+
+      <p>
+        The validation that catches it is <em>derived from the contract</em>, not hardcoded.
+        <code>Event.from_mapping</code> reads the declared fields off the <code>Event</code>
+        dataclass in <code>events.py</code>, the one type every sink accepts, so the runtime
+        error and the eval's ground truth cannot drift apart. The exception names the
+        missing field, the undeclared one that arrived instead, and the declared fields,
+        because that message is the agent's primary evidence.
+      </p>
+
+      <div class="note">
+        <span class="note-label">One failure, every configuration</span>
+        <p>
+          Because drift is caught on the contract rather than against the DuckDB DDL, the
+          same <code>schema_drift</code> mode fires with the Lakehouse Pattern on or off.
+          When it is on, a generated test keeps the contract a subset of the table's columns.
+        </p>
+      </div>
+    </section>
+
+    <section id="tools">
+      <span class="eyebrow">Security boundary</span>
+      <h2>The tool allowlist</h2>
+      <p>
+        Three tools. No bash, no write, no directory listing. The allowlist is not a
+        convenience — it is the entire security model, because the agent runs inside an
+        Airflow worker with access to a real repository.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Tool</th><th>Returns</th><th>Why it is a tool rather than prompt context</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>read_task_log</code></td>
+              <td>Bounded log tail</td>
+              <td>The trace records <em>that the agent read it</em> — evidence it diagnosed rather than pattern-matched the exception name.</td>
+            </tr>
+            <tr>
+              <td><code>read_repo_file</code></td>
+              <td>File contents</td>
+              <td>Path confinement is enforceable at a typed boundary. It is not, if the agent has a shell.</td>
+            </tr>
+            <tr>
+              <td><code>propose_patch</code></td>
+              <td>Staged edit</td>
+              <td>Produces a diff without touching the filesystem. The agent never writes.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Path confinement</h3>
+      <p>
+        The <code>path</code> argument is model output, so this is load-bearing rather than
+        defensive. The order matters: resolve first — collapsing <code>..</code> and
+        following symlinks — then check containment.
+      </p>
+
+      <div class="code-wrap">
+        <div class="code-head">src/&lt;slug&gt;/agentic/tools.py</div>
+        <pre class="code"><code>def resolve(self, path: str) -> Path:
+    root = self.project_root.resolve()
+    candidate = (root / path).resolve()
+    if not candidate.is_relative_to(root):
+        raise ToolError(f"path '{path}' resolves outside the project root")
+    return candidate</code></pre>
+      </div>
+
+      <p>
+        Three escape vectors are tested against real filesystem behaviour rather than string
+        patterns: <code>../etc/passwd</code>, an absolute <code>/etc/passwd</code> (which
+        Python's <code>/</code> operator silently makes the whole path), and an actual
+        symlink pointing outside the tree.
+      </p>
+
+      <h3>Staging, not applying</h3>
+      <p>
+        <code>propose_patch</code> uses <code>str_replace</code> semantics but records the
+        edit rather than performing it. Both it and <code>render_diff</code> derive the
+        file's post-edit content through one shared helper, <code>_apply_staged_edits</code>.
+      </p>
+      <div class="note warn">
+        <span class="note-label">A bug this prevented</span>
+        <p>
+          Originally <code>propose_patch</code> validated against the file <em>on disk</em>
+          while <code>render_diff</code> applied edits <em>sequentially in memory</em>. Two
+          views of the same state, kept in agreement by hand. A second edit overlapping text
+          the first had rewritten was silently dropped from the patch while the metadata
+          still claimed it. Collapsing both onto one derivation is the fix; the raised error
+          is only the tripwire.
+        </p>
+      </div>
+    </section>
+
+    <section id="runner">
+      <span class="eyebrow">The seam</span>
+      <h2>Where the non-determinism lives</h2>
+      <p>
+        <code>AgentRunner</code> is a protocol with one method. Three implementations satisfy
+        it, and nothing downstream can tell which one ran.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Implementation</th><th>Source of truth</th><th>Needs a key</th></tr></thead>
+          <tbody>
+            <tr><td><code>FakeRunner</code></td><td>A fixture you hand it</td><td>No</td></tr>
+            <tr><td><code>ReplayRunner</code></td><td>A recorded cassette, dispatched through the <em>real</em> tools</td><td>No</td></tr>
+            <tr><td><code>ClaudeRunner</code></td><td>A live model</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <code>ReplayRunner</code> is the interesting one. It replays the model's
+        <em>decisions</em> from a cassette but executes every tool call for real, so path
+        confinement, edit staging and diff rendering are genuinely exercised. Its
+        <code>AgentResult</code> is built from what dispatch actually staged, never from the
+        cassette — an earlier version read a hand-authored <code>edits</code> field, which
+        quietly demoted the whole tier to an elaborate mock.
+      </p>
+
+      <h3>Tier-dependent request parameters</h3>
+      <p>
+        The model is a cookiecutter variable, so request parameters cannot be interpolated
+        blindly. <code>temperature</code> is valid on Haiku and returns HTTP 400 on Opus 5;
+        <code>output_config.effort</code> is the reverse. A small table resolves this, and
+        an unrecognised model gets the intersection valid everywhere — an empty dict.
+      </p>
+
+      <div class="code-wrap">
+        <div class="code-head">src/&lt;slug&gt;/agentic/runner.py</div>
+        <pre class="code"><code>_MODEL_PARAMS: dict[str, dict] = {
+    "claude-haiku-4-5": {"temperature": 0},
+    "claude-sonnet-5":  {"output_config": {"effort": "medium"}},
+    "claude-opus-5":    {"output_config": {"effort": "medium"}},
+}
+
+def _model_kwargs(model: str) -> dict:
+    <span class="cmt"># deepcopy, not dict(...): a shallow copy shares the nested
+    # output_config with the module table, so one caller mutating it
+    # would corrupt every later call.</span>
+    return copy.deepcopy(_MODEL_PARAMS.get(model, {}))</code></pre>
+      </div>
+    </section>
+
+    <section id="trace">
+      <span class="eyebrow">Observability</span>
+      <h2>One JSON array per failure event</h2>
+      <p>
+        The entire run is captured as a single document whose top level is an array of
+        elements in emission order. Because a healing run is single-threaded, emission order
+        <em>is</em> causal order — which is why a flat <code>seq</code> replaces a
+        parent/child span tree entirely.
+      </p>
+
+      <div class="seq">
+        <div class="seq-row"><span class="seq-n">0</span><span class="seq-kind">agent_run</span><span class="seq-note">status <code>running</code>, carries the DAG correlation keys</span></div>
+        <div class="seq-row"><span class="seq-n">1</span><span class="seq-kind">llm_turn</span><span class="seq-note">token counts from <code>response.usage</code></span></div>
+        <div class="seq-row"><span class="seq-n">2</span><span class="seq-kind">tool_call</span><span class="seq-note"><code>read_task_log</code> — proves the log was actually read</span></div>
+        <div class="seq-row"><span class="seq-n">3</span><span class="seq-kind">tool_call</span><span class="seq-note"><code>read_repo_file</code></span></div>
+        <div class="seq-row"><span class="seq-n">4</span><span class="seq-kind">llm_turn</span><span class="seq-note"></span></div>
+        <div class="seq-row"><span class="seq-n">5</span><span class="seq-kind">tool_call</span><span class="seq-note"><code>propose_patch</code></span></div>
+        <div class="seq-row"><span class="seq-n">6</span><span class="seq-kind">result</span><span class="seq-note">the structured diagnosis</span></div>
+        <div class="seq-row"><span class="seq-n">7</span><span class="seq-kind">agent_run</span><span class="seq-note">terminal element — <code>ok</code> or <code>error</code>, always present</span></div>
+      </div>
+
+      <p>
+        The array being the unit of write makes atomicity structural rather than
+        transactional: the document is written or it is not. It also makes assertions
+        trivial — checking that the agent read the log <em>before</em> proposing a patch is
+        a one-line comparison over a list.
+      </p>
+
+      <h3>Storage</h3>
+      <p>
+        One row per failure event when the Lakehouse Pattern is on; one file per event when
+        it is off. Both persist structurally identical documents, so an eval asserting on a
+        trace does not care which sink ran.
+      </p>
+
+      <div class="code-wrap">
+        <div class="code-head">src/&lt;slug&gt;/agentic/create_traces_table.sql</div>
+        <pre class="code"><code>CREATE TABLE IF NOT EXISTS agent_traces (
+    trace_id    VARCHAR PRIMARY KEY,
+    dag_id      VARCHAR,
+    dag_run_id  VARCHAR,
+    task_id     VARCHAR,
+    try_number  INTEGER,
+    occurred_at TIMESTAMP,
+    status      VARCHAR,
+    elements    JSON
+);</code></pre>
+      </div>
+
+      <p>
+        DuckDB's native JSON support keeps aggregate queries first-class —
+        <code>unnest(json_extract(elements, '$[*]'))</code> recovers a row-per-element view
+        without the write path paying for that shape. The agent's own telemetry becomes
+        just another dataset in the lakehouse, queryable with the same SQL as everything
+        else.
+      </p>
+    </section>
+
+    <section id="publish">
+      <span class="eyebrow">Output</span>
+      <h2>Publishing the patch</h2>
+      <p>
+        The default writes two files and requires no credentials: a unified diff ready for
+        <code>git apply</code>, and a metadata document carrying the proposed title, body,
+        confidence and edits. A generated scaffold that tried to push to a remote on first
+        run would be a poor introduction, and most freshly generated projects have no remote
+        at all.
+      </p>
+      <p>
+        <code>GitHubPublisher</code> ships alongside it and activates only when
+        <code>AGENTIC_GITHUB_REPO</code> is set. It branches from the configured base rather
+        than whatever <code>HEAD</code> happens to be, and restores the original branch on
+        failure so a retry of the same trace is not blocked by a half-created branch.
+      </p>
+      <div class="note">
+        <span class="note-label">A run with no edits is a real outcome</span>
+        <p>
+          The agent may correctly conclude it cannot fix something. In that case there is no
+          <code>.patch</code> file, but the metadata document is still written — that record
+          is how a human learns the agent ran and gave up. The same guarantee holds when
+          diff rendering fails: a <code>render_error</code> field distinguishes "could not
+          render" from "chose not to edit", so the audit trail survives the case where it
+          matters most.
+        </p>
+      </div>
+    </section>
+
+    <section id="evals">
+      <span class="eyebrow">Verification</span>
+      <h2>Four tiers, two of which gate</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Tier</th><th>Marker</th><th>Runner</th><th>Gates CI</th><th>Proves</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Unit</td><td><em>none</em></td><td><code>FakeRunner</code></td>
+              <td><span class="pill gate">yes</span></td>
+              <td>Plumbing: trace well-formed, patch renders, sinks agree</td>
+            </tr>
+            <tr>
+              <td>Replay</td><td><em>none</em></td><td><code>ReplayRunner</code></td>
+              <td><span class="pill gate">yes</span></td>
+              <td>The real loop: tool dispatch, confinement, diff rendering</td>
+            </tr>
+            <tr>
+              <td>Live</td><td><code>live</code></td><td><code>ClaudeRunner</code></td>
+              <td><span class="pill nogate">no</span></td>
+              <td>Agent quality against a live model</td>
+            </tr>
+            <tr>
+              <td>Graded</td><td><code>graded</code></td><td>+ <code>ClaudeGrader</code></td>
+              <td><span class="pill nogate">no</span></td>
+              <td>Scored, per-criterion feedback with written reports</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <code>uv run pytest</code> runs the first two: fully deterministic, no key, no
+        network. The other two are deselected by <code>addopts</code> <em>and</em> skip
+        themselves when <code>ANTHROPIC_API_KEY</code> is unset — belt and braces, so
+        someone who overrides the marker filter still does not get a surprise bill.
+      </p>
+
+      <h3>Cases are data</h3>
+      <p>
+        Each case is a YAML file declaring what to expect and which criteria gate. Adding a
+        case means adding a file, not writing a test — which matters in a template, because
+        a generated project's failure modes will differ from the ones shipped here.
+      </p>
+
+      <div class="code-wrap">
+        <div class="code-head">evals/cases/schema_drift.yaml</div>
+        <pre class="code"><code>expect:
+  tools_called:
+    must_call:    [read_task_log, read_repo_file, propose_patch]
+    must_precede: [[read_task_log, propose_patch]]   <span class="cmt"># log before patch</span>
+  patch_targets: src/pkg/batch/dags/example_dag.py
+score:
+  required: [tools_called, patch_targets]   <span class="cmt"># these gate</span>
+  advisory: [diagnosis_mentions, min_confidence]   <span class="cmt"># these report</span></code></pre>
+      </div>
+
+      <p>
+        The <code>required</code> / <code>advisory</code> split is explicit in the data
+        because the two kinds of criterion are genuinely different.
+        <code>patch_targets</code> is objectively checkable, so it gates.
+        <code>diagnosis_mentions</code> is keyword matching over prose: useful signal, poor
+        gate. Encoding the distinction stops a later "fix" to a flaky eval from loosening
+        the load-bearing half.
+      </p>
+
+      <div class="note warn">
+        <span class="note-label">A criterion that could not fail</span>
+        <p>
+          An earlier version asserted the <em>exact</em> tool sequence, including exactly
+          two <code>read_repo_file</code> calls — a number copied from the cassette rather
+          than derived from what the criterion means. A correct live model reading one file,
+          or three, would have failed a gating criterion. Coverage plus ordering encodes the
+          actual intent; the exact transcript survives as a replay-only check where it is
+          meaningful.
+        </p>
+      </div>
+
+      <h3>The grader</h3>
+      <p>
+        The grader gets the same seam treatment as the runner — <code>FakeGrader</code>
+        alongside <code>ClaudeGrader</code> — so a bug in the Markdown report table does not
+        require an API key to catch. It receives the rubric, the trace array and the diff,
+        but deliberately <em>not</em> the agent's system prompt: grading against the same
+        instructions the agent was given measures compliance, not correctness. Its output is
+        per-criterion rather than a single score, because one number tells you a regression
+        happened while per-criterion feedback tells you which criterion moved.
+      </p>
+    </section>
+
+    <section id="template">
+      <span class="eyebrow">Integration</span>
+      <h2>Living inside a cookiecutter template</h2>
+      <p>
+        This is not an application — it is a Pattern in a template, and everything under
+        <code>{{cookiecutter.project_slug}}/</code> is Jinja-rendered before it is Python.
+        Two constraints follow, and both are enforced by tests rather than convention.
+      </p>
+
+      <h3>The manifest invariant</h3>
+      <p>
+        <code>hooks/post_gen_project.py</code> holds a canonical <code>PATTERNS</code> list
+        declaring, per flag, which files are deleted when it is off and which are
+        <em>gated</em> — kept either way but containing their own Jinja conditional. A test
+        reflects over the template tree and asserts the declared <code>gated</code> set
+        <em>exactly equals</em> the files that actually reference that flag. It fails in both
+        directions: declaring a file early is as loud as forgetting one.
+      </p>
+
+      <h3>The dependency nobody else has</h3>
+      <p>
+        The existing four Patterns are mutually independent. Agentic is the first with a
+        cross-Pattern requirement — it heals a batch DAG, so without <code>include_batch</code>
+        there is nothing to observe. The pre-generation hook rejects that combination with a
+        clear message rather than generating a project that silently does nothing.
+      </p>
+
+      <div class="note">
+        <span class="note-label">No dead branches</span>
+        <p>
+          The template's central promise is that disabling a Pattern removes its files
+          entirely. Two files were caught violating it during review — an unread grader
+          cassette, and the traces DDL shipping when the Lakehouse Pattern was off and
+          nothing could read it. Both are now removed with their flag, and a bake test greps
+          for leftovers.
+        </p>
+      </div>
+    </section>
+
+    <section id="provider">
+      <span class="eyebrow">Portability</span>
+      <h2>How coupled is this to one provider?</h2>
+      <p>
+        Structurally, very little. Concretely, in four places. Most of the runtime code —
+        contracts, tracing, publishing, the healing orchestration, and every tool's actual
+        behaviour — never names a provider at all.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Neutral today</th><th>Still coupled</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>contracts.py</code>, <code>tracing.py</code>, <code>publisher.py</code></td>
+              <td><code>ClaudeRunner</code> — expected; it <em>is</em> the implementation</td>
+            </tr>
+            <tr>
+              <td>Tool behaviour and <code>ToolDefinition</code></td>
+              <td><code>_MODEL_PARAMS</code> — Claude model IDs</td>
+            </tr>
+            <tr>
+              <td>Replay cassettes — recorded in our own format</td>
+              <td>Loop shapes: <code>stop_reason</code>, <code>tool_use_id</code></td>
+            </tr>
+            <tr>
+              <td>The eval harness and scoring</td>
+              <td><code>ClaudeGrader</code> — the same coupling, duplicated</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Tools are now declared provider-neutrally as
+        <code>ToolDefinition(name, description, parameters)</code> with plain JSON Schema,
+        and each runner renders them into its provider's shape — Anthropic nests the schema
+        under <code>input_schema</code>, OpenAI under <code>function.parameters</code>. That
+        rename was the one leak sitting on the wrong side of the seam.
+      </p>
+      <p>
+        A second provider is therefore a second implementation of the existing protocol, not
+        a re-architecture. And because the cassettes record <em>our</em> format rather than
+        provider wire format, a new runner inherits the entire deterministic eval suite
+        unchanged.
+      </p>
+    </section>
+
+    <section id="gaps">
+      <span class="eyebrow">Honesty</span>
+      <h2>What is still open</h2>
+      <p>
+        These are known and deliberately unfixed rather than undiscovered. Recorded here
+        because a walkthrough that only describes the parts that work is not a walkthrough.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Gap</th><th>Consequence</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>.gitignore</code> rules for the other Patterns are still ungated</td>
+              <td>The Agentic block is now gated, but <code>dbt_packages/</code> and <code>target/</code> still ship with dbt off, and <code>logs/*</code> with Batch off. <code>data/</code> is the awkward one: Batch, Streaming and the evals fixtures all write there, so gating it needs a three-way condition and puts <code>.gitignore</code> in three more manifest entries. Same deviation from the no-dead-branches promise as the Agentic rules had, just not yet paid down.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <span class="note-label">The most instructive bug of the build</span>
+        <p>
+          The healing task originally read <code>context["task_instance"]</code> — its
+          <em>own</em> TaskInstance, since it is an ordinary downstream task. The agent was
+          told <code>heal_on_failure</code> had failed and was pointed at its own log. Every
+          unit test passed, because they handed in a fake TaskInstance already carrying
+          <code>task_id="load"</code>: they asserted the mapping, not the source. Only a test
+          that actually ran the DAG could catch it. The failed task's id is now passed
+          explicitly from the wiring.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      Branch <code>agentic-self-healing-pattern</code> &middot; 32 commits &middot;
+      105 tests in a generated project, 9 more in the template's slow tier.
+      <code>uv run pytest</code> passes with no API key and no network.
+    </footer>
+
+  </main>
+</div>

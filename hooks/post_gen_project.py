@@ -3,6 +3,7 @@ import shutil
 
 PROJECT_DIR = os.path.realpath(os.curdir)
 SLUG = {{ cookiecutter.project_slug | tojson }}
+INCLUDE_BATCH = {{ cookiecutter.include_batch }}
 INCLUDE_LAKEHOUSE = {{ cookiecutter.include_lakehouse }}
 INCLUDE_DBT = {{ cookiecutter.include_dbt }}
 
@@ -22,6 +23,7 @@ PATTERNS = [
         "remove": [
             f"src/{SLUG}/batch",
             "tests/test_batch_dag.py",
+            "logs",
         ],
         "gated": [
             "README.md",
@@ -49,6 +51,7 @@ PATTERNS = [
             f"src/{SLUG}/lakehouse",
             "tests/test_lakehouse_writer.py",
             "transformation/models/staging/sources.yml",
+            f"src/{SLUG}/agentic/create_traces_table.sql",
         ],
         "gated": [
             "README.md",
@@ -56,9 +59,13 @@ PATTERNS = [
             "pyproject.toml",
             "tests/test_parquet_sink.py",
             "tests/test_batch_dag.py",
+            "tests/test_events.py",
             f"src/{SLUG}/sinks.py",
             f"src/{SLUG}/batch/dags/example_dag.py",
             f"src/{SLUG}/streaming/consumer.py",
+            f"src/{SLUG}/agentic/tracing.py",
+            "tests/test_agentic_tracing.py",
+            "tests/test_agentic_healing.py",
             "transformation/dbt_project.yml",
             "transformation/models/staging/stg_events.sql",
             "transformation/profiles.yml",
@@ -77,11 +84,37 @@ PATTERNS = [
             "pyproject.toml",
         ],
     },
+    {
+        "flag_name": "include_agentic",
+        "flag": {{ cookiecutter.include_agentic }},
+        "remove": [
+            f"src/{SLUG}/agentic",
+            "tests/test_agentic_contracts.py",
+            "tests/test_agentic_tracing.py",
+            "tests/test_agentic_tools.py",
+            "tests/test_agentic_runner.py",
+            "tests/test_agentic_publisher.py",
+            "tests/test_agentic_healing.py",
+            "evals",
+            "artifacts",
+        ],
+        "gated": [
+            "pyproject.toml",
+            f"src/{SLUG}/batch/dags/example_dag.py",
+            "tests/test_batch_dag.py",
+            "docker-compose.yml",
+            ".github/workflows/ci.yml",
+            "README.md",
+            ".gitignore",
+        ],
+    },
 ]
 
-# src/{slug}/sinks.py is shared by the Batch and Streaming callers (not a
-# Pattern of its own), so it's dropped only when neither caller survives.
+# Files whose existence depends on a *combination* of flags, so they belong
+# to no single Pattern entry. Each item is (keep_it?, paths).
 COMPOUND_REMOVALS = [
+    # src/{slug}/sinks.py is shared by the Batch and Streaming callers (not a
+    # Pattern of its own), so it's dropped only when neither caller survives.
     ({{ cookiecutter.include_batch or cookiecutter.include_streaming }}, [
         f"src/{SLUG}/sinks.py",
         "tests/test_parquet_sink.py",
@@ -120,8 +153,43 @@ def sync_lakehouse_ddl():
         f.write(content)
 
 
+def write_airflow_env():
+    """Pin AIRFLOW_UID to this host's uid in a .env docker compose will read.
+
+    The airflow image runs as uid 50000, but ./logs and ./artifacts are
+    bind-mounted host directories that keep their host ownership. On Linux
+    that uid cannot write to them, so the demo's failing task never produces
+    a log the healing agent can read, and the healing task never produces a
+    patch.
+
+    Compose's airflow-init service is what guarantees those mounts are
+    writable, so this file is not what makes `docker compose up` work -- it
+    is gitignored and absent on any machine that did not run cookiecutter.
+    What it buys is ownership: with the host uid pinned here, init's chown is
+    a no-op and the logs and patches stay readable and deletable as you,
+    rather than as uid 50000. See the README for how to refresh it elsewhere.
+    """
+    if not INCLUDE_BATCH or not hasattr(os, "getuid"):
+        # No airflow service means no uid to pin; and on Windows there is no
+        # uid to read, where the image's own 50000 is already correct.
+        return
+    env_path = os.path.join(PROJECT_DIR, ".env")
+    with open(env_path, "w") as f:
+        f.write(
+            "# Written at generation time by cookiecutter-data-scaffold, and\n"
+            "# specific to the machine that generated this project. docker\n"
+            "# compose reads this file automatically.\n"
+            "#\n"
+            "# The airflow image runs as uid 50000; the ./logs and ./artifacts\n"
+            "# bind mounts keep their host ownership. Pinning the host uid is\n"
+            "# what keeps those mounts writable from inside the container.\n"
+            f"AIRFLOW_UID={os.getuid()}\n"
+        )
+
+
 def main():
     sync_lakehouse_ddl()
+    write_airflow_env()
     for pattern in PATTERNS:
         if not pattern["flag"]:
             for path in pattern["remove"]:

@@ -4,18 +4,82 @@ services: {}
 {%- else %}
 services:
 {%- if cookiecutter.include_batch %}
+{%- set init_dirs = "/sources/logs /sources/artifacts" if cookiecutter.include_agentic else "/sources/logs" %}
+  # Bind-mounted host directories keep their host ownership, so on Linux the
+  # uid the airflow service runs as cannot write to them. This runs first, as
+  # root, and hands those directories to that uid -- which is what makes a
+  # fresh `git clone && docker compose up` work with no .env and no manual
+  # step. Generation still pins this host's uid in a .env beside this file:
+  # when it is present the chown is a no-op and the files stay yours, and
+  # when it is not (a clone, CI, a teammate) the fallback below still leaves
+  # the mounts writable.
+  #
+  # What this must not do is treat a refused chown as a failure. Docker backed
+  # by a VM -- colima, Docker Desktop, Rancher, OrbStack -- shares host
+  # directories through a filesystem that denies chown even to root, and that
+  # denial is harmless there because the share already presents its files as
+  # writable to the container user. So the chown is best-effort and the
+  # writability probe is the thing that actually decides.
+  airflow-init:
+    image: apache/airflow:{{ cookiecutter.airflow_version }}
+    user: "0:0"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -e
+        mkdir -p {{ init_dirs }}
+        chown -R "${AIRFLOW_UID:-50000}:0" {{ init_dirs }} 2>/dev/null \
+          || echo "note: this host's mount declined chown; checking writability instead"
+        # Probe as the uid airflow will really run as, never as root -- root
+        # can write anywhere, so a root probe would pass on exactly the broken
+        # mount this is meant to catch.
+        for dir in {{ init_dirs }}; do
+          setpriv --reuid="${AIRFLOW_UID:-50000}" --regid=0 --clear-groups \
+            touch "$$dir/.airflow-init-probe" 2>/dev/null || {
+              echo "FATAL: $$dir is not writable by uid ${AIRFLOW_UID:-50000}." >&2
+              echo "Set AIRFLOW_UID to your own uid (id -u) in the .env beside this file." >&2
+              exit 1
+            }
+          rm -f "$$dir/.airflow-init-probe"
+        done
+    volumes:
+      - ./logs:/sources/logs
+{%- if cookiecutter.include_agentic %}
+      - ./artifacts:/sources/artifacts
+{%- endif %}
+
   airflow-standalone:
     image: apache/airflow:{{ cookiecutter.airflow_version }}
     command: standalone
+    # Falls back to the image's own uid 50000 when no .env pins a host uid.
+    # airflow-init has already proven the mounts are writable by whichever uid
+    # this resolves to -- by chowning them where that is permitted, and by
+    # probing as that uid where it is not.
+    user: "${AIRFLOW_UID:-50000}:0"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       PYTHONPATH: /opt/airflow/project/src
-      _PIP_ADDITIONAL_REQUIREMENTS: "pyarrow>=17.0{% if cookiecutter.include_lakehouse %} duckdb>=1.0{% endif %}"
+{%- if cookiecutter.include_agentic %}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+{%- endif %}
+      _PIP_ADDITIONAL_REQUIREMENTS: "pyarrow>=17.0{% if cookiecutter.include_lakehouse %} duckdb>=1.0{% endif %}{% if cookiecutter.include_agentic %} anthropic>=0.40 pydantic>=2.7{% endif %}"
     volumes:
       - ./src:/opt/airflow/project/src
       - ./src/{{ cookiecutter.project_slug }}/batch/dags:/opt/airflow/dags
+      # AIRFLOW__LOGGING__BASE_LOG_FOLDER defaults to $AIRFLOW_HOME/logs.
+      # Mounting it is what makes a failing task's log readable on the host.
+      - ./logs:/opt/airflow/logs
+{%- if cookiecutter.include_agentic %}
+      # The healing task writes its patch and metadata under the project
+      # root. Without this mount they never leave the container.
+      - ./artifacts:/opt/airflow/project/artifacts
+{%- endif %}
 {%- endif %}
 {%- if cookiecutter.include_streaming %}
   kafka:

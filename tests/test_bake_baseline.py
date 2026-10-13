@@ -20,6 +20,7 @@ def test_all_patterns_off_removes_pattern_dirs(cookies):
         include_streaming=False,
         include_lakehouse=False,
         include_dbt=False,
+        include_agentic=False,
     )
     assert result.exit_code == 0
     project = result.project_path
@@ -136,7 +137,7 @@ def test_hooks_do_not_execute_code_injected_via_project_name(cookies):
 
 def test_no_ingestion_patterns_omit_storage_adapter_dependencies(cookies):
     result = bake_with(cookies, include_batch=False, include_streaming=False,
-                       include_lakehouse=False, include_dbt=True)
+                       include_lakehouse=False, include_dbt=True, include_agentic=False)
     project = result.project_path
     slug = result.context["project_slug"]
     assert not (project / "src" / slug / "events.py").exists()

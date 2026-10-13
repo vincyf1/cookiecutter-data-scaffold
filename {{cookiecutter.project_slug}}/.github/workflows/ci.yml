@@ -12,7 +12,11 @@ jobs:
       - uses: astral-sh/setup-uv@v3
       - run: uv sync
       - run: uv run ruff check .
+{%- if cookiecutter.include_agentic %}
+      - run: uv run pytest -m "not live and not graded" || [ $? -eq 5 ]
+{%- else %}
       - run: uv run pytest || [ $? -eq 5 ]
+{%- endif %}
 {%- if cookiecutter.include_dbt %}
       - name: dbt deps
         working-directory: transformation
