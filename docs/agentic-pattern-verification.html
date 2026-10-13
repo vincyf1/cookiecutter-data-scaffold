@@ -764,10 +764,8 @@ mv .env.bak .env</code></pre>
 docker compose ps -a
 
 <span class="cmt"># Open http://localhost:8080 and trigger example_events_dag</span>
-<span class="cmt"># with this run config (all Patterns on):</span>
-<span class="cmt">#   {"failure_mode": "schema_drift"}</span>
-<span class="cmt"># With the Lakehouse Pattern off, use instead:</span>
-<span class="cmt">#   {"failure_mode": "missing_config"}</span></code></pre>
+<span class="cmt"># with this run config (any Pattern combination with Batch):</span>
+<span class="cmt">#   {"failure_mode": "schema_drift"}</span></code></pre>
           </div>
           <p>Then check the four things the run is supposed to produce:</p>
           <div class="code-wrap">

@@ -671,26 +671,24 @@
       <div class="code-wrap">
         <div class="code-head">the drift</div>
         <pre class="code"><code><span class="del">- return [{"id": 1, "customer_name": "example"}]  # emitted</span>
-<span class="add">+ CREATE TABLE events (id BIGINT, name VARCHAR, ...)  # declared</span></code></pre>
+<span class="add">+ class Event: id: int; name: str  # declared</span></code></pre>
       </div>
 
       <p>
-        The validation that catches it is <em>derived from the DDL</em>, not hardcoded.
-        <code>declared_columns()</code> parses <code>lakehouse/create_tables.sql</code> —
-        described in the project's own post-generation hook as "the schema's only
-        hand-authored source" — so the runtime error message and the eval's ground truth
-        cannot drift apart. The resulting exception names both the offending field and the
-        expected columns, because that message is the agent's primary evidence.
+        The validation that catches it is <em>derived from the contract</em>, not hardcoded.
+        <code>Event.from_mapping</code> reads the declared fields off the <code>Event</code>
+        dataclass in <code>events.py</code>, the one type every sink accepts, so the runtime
+        error and the eval's ground truth cannot drift apart. The exception names the
+        missing field, the undeclared one that arrived instead, and the declared fields,
+        because that message is the agent's primary evidence.
       </p>
 
       <div class="note">
-        <span class="note-label">Two configurations, two failures</span>
+        <span class="note-label">One failure, every configuration</span>
         <p>
-          With the Lakehouse Pattern disabled there is no DDL to validate against, so the
-          demo ships a <code>missing_config</code> mode instead — a real configuration
-          lookup that raises through the production code path, naming what was missing and
-          what was declared. The Pattern stays useful in both configurations rather than
-          silently doing nothing in one.
+          Because drift is caught on the contract rather than against the DuckDB DDL, the
+          same <code>schema_drift</code> mode fires with the Lakehouse Pattern on or off.
+          When it is on, a generated test keeps the contract a subset of the table's columns.
         </p>
       </div>
     </section>

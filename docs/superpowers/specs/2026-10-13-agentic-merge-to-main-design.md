@@ -1,7 +1,7 @@
 # Merging the Agentic Pattern into main — Design
 
 **Date:** 2026-10-13
-**Status:** Draft for review
+**Status:** Approved
 **Branch:** `agentic-self-healing-pattern` → `main`
 
 ## Summary
@@ -101,7 +101,7 @@ the new runtime rather than re-baked:
 
 | File | Resolution |
 |---|---|
-| `hooks/post_gen_project.py` | Take `main`'s manifest, then add the branch's `include_agentic` entry, its `logs` removal under Batch, and its `agentic/` files. Drop `batch/sinks.py`, `streaming/sinks.py`, `test_streaming_sinks.py` and `test_batch_config.py` from every list. Add `events.py` to the agentic `gated` list. |
+| `hooks/post_gen_project.py` | Take `main`'s manifest, then add the branch's `include_agentic` entry, its `logs` removal under Batch, and its `agentic/` files. Drop `batch/sinks.py`, `streaming/sinks.py`, `test_streaming_sinks.py` and `test_batch_config.py` from every list. Add `tests/test_events.py` to the lakehouse `gated` list (its DDL-subset test is gated). |
 | `{{slug}}/README.md` | Keep both sections: `main`'s event-ingestion section and the branch's agentic section, minus `missing_config`. |
 | `example_dag.py` | As in "The demo DAG" above. |
 | `batch/sinks.py` | Delete (`main` deleted it). |

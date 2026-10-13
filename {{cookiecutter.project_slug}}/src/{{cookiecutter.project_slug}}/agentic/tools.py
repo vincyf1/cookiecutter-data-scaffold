@@ -307,7 +307,7 @@ TOOL_DEFINITIONS = [
         name="read_repo_file",
         description=(
             "Read a source file, relative to the project root. Use this to inspect "
-            "the DAG that produced the bad record and the DDL that defines the schema."
+            "the DAG that produced the bad record and the contract it was validated against."
         ),
         parameters={
             "type": "object",
