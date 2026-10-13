@@ -18,13 +18,13 @@ def test_shared_sink_uses_parquet_when_lakehouse_disabled(cookies):
     assert "pyarrow" in sinks
 
 
-def test_batch_and_streaming_sinks_delegate_to_shared_sink(cookies):
-    result = bake_with(cookies, include_batch=True, include_streaming=True)
-    slug = result.context["project_slug"]
-    batch_sinks = (result.project_path / "src" / slug / "batch" / "sinks.py").read_text()
-    streaming_sinks = (result.project_path / "src" / slug / "streaming" / "sinks.py").read_text()
-    assert f"{slug}.sinks import" in batch_sinks
-    assert f"{slug}.sinks import" in streaming_sinks
+def test_shared_sink_exposes_one_interface_in_each_storage_variant(cookies):
+    for lakehouse in (True, False):
+        result = bake_with(cookies, include_lakehouse=lakehouse)
+        slug = result.context["project_slug"]
+        sinks = (result.project_path / "src" / slug / "sinks.py").read_text()
+        assert "class EventSink(Protocol)" in sinks
+        assert "def create_event_sink(destination: Path) -> EventSink" in sinks
 
 
 def test_shared_sink_removed_when_batch_and_streaming_both_disabled(cookies):
@@ -289,3 +289,11 @@ def test_agentic_bake_lints_clean(cookies):
     # A pin below what the generated project resolves lets this pass while
     # real bakes fail.
     lint_project(result.project_path)
+
+
+@pytest.mark.slow
+def test_default_bake_generated_tests_pass(cookies):
+    result = bake_with(cookies)
+    assert result.exit_code == 0
+    run_cmd(result.project_path, "uv", "sync")
+    run_cmd(result.project_path, "uv", "run", "pytest", "-v")

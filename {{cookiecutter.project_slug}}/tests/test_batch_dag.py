@@ -6,17 +6,6 @@ from {{ cookiecutter.project_slug }}.batch.dags.example_dag import (
     example_events_dag,
 )
 
-{%- if cookiecutter.include_lakehouse %}
-
-# The demo's diagnosable failure. With the Lakehouse Pattern the record
-# drifts from the DDL; without it there is no DDL, so the demo ships a
-# config-lookup failure instead.
-FAILING_MODE = "schema_drift"
-{%- else %}
-
-FAILING_MODE = "missing_config"
-{%- endif %}
-
 
 def test_dag_has_no_import_errors():
     dag = example_events_dag()
@@ -29,14 +18,14 @@ def test_dag_exposes_a_failure_mode_param():
     assert "failure_mode" in dag.params
 
 
-def test_the_demo_offers_a_failure_mode_that_this_bake_can_actually_raise():
+def test_the_demo_offers_schema_drift_in_every_configuration():
     # A mode the shipped code cannot raise is worse than no mode at all: the
     # README promises the failure fires, and with ALL_FAILED wiring a load
     # task that quietly succeeds means the healer is skipped entirely.
-    assert FAILURE_MODES == ["none", FAILING_MODE]
+    assert FAILURE_MODES == ["none", "schema_drift"]
 
 
-@pytest.mark.parametrize("mode", ["none", FAILING_MODE])
+@pytest.mark.parametrize("mode", ["none", "schema_drift"])
 def test_failure_mode_accepts_both_values(mode):
     dag = example_events_dag()
     # dag.params[...] resolves to the bare value; plain attribute assignment
@@ -51,21 +40,27 @@ def test_failure_mode_rejects_a_value_outside_the_enum():
     param = dag.params.get_param("failure_mode")
     with pytest.raises(ParamValidationError):
         param.resolve(value="bogus")
-{%- if not cookiecutter.include_lakehouse %}
 
 
-def test_the_failing_mode_raises_a_diagnosable_error():
-    # Exercises the real path the DAG takes, not a stand-in: load() asks
-    # batch/sinks.write_events for a setting name that pipeline.toml does
-    # not declare.
-    from {{ cookiecutter.project_slug }}.batch.config import MissingConfigError
-    from {{ cookiecutter.project_slug }}.batch.sinks import write_events
+def test_load_persists_validated_events(tmp_path, monkeypatch):
+    import importlib
 
-    with pytest.raises(MissingConfigError) as excinfo:
-        write_events([{"id": 1, "name": "example"}], output_setting="output_file")
+    module = importlib.import_module("{{ cookiecutter.project_slug }}.batch.dags.example_dag")
+    destination = tmp_path / "output"
+    monkeypatch.setattr(module, "DEFAULT_DESTINATION", destination)
+    dag = example_events_dag()
+    dag.get_task("load").python_callable([{"id": 7, "name": "loaded"}])
+{%- if cookiecutter.include_lakehouse %}
+    import duckdb
 
-    assert "output_file" in str(excinfo.value)
-    assert "output_path" in str(excinfo.value)
+    with duckdb.connect(str(destination)) as connection:
+        assert connection.execute("SELECT id, name FROM events").fetchall() == [(7, "loaded")]
+{%- else %}
+    import pyarrow.parquet as pq
+
+    files = list(destination.glob("*.parquet"))
+    assert len(files) == 1
+    assert pq.read_table(files[0]).to_pylist() == [{"id": 7, "name": "loaded"}]
 {%- endif %}
 {%- if cookiecutter.include_agentic %}
 

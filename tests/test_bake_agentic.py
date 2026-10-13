@@ -321,14 +321,14 @@ def test_generated_readme_documents_the_agentic_pattern(cookies):
 
 @pytest.mark.parametrize(
     ("lakehouse", "mode"),
-    [(True, "schema_drift"), (False, "missing_config")],
+    [(True, "schema_drift"), (False, "schema_drift")],
 )
 def test_readme_documents_the_failure_mode_this_bake_actually_ships(
     cookies, lakehouse, mode
 ):
-    # The README's lakehouse-off branch used to promise a schema_drift
-    # failure that this configuration cannot raise -- there is no DDL to
-    # drift from, so `load` succeeded and the ALL_FAILED healer was skipped.
+    # The README once promised a failure the lakehouse-off bake could not
+    # raise, so `load` succeeded and the ALL_FAILED healer was skipped. Both
+    # configurations now ship schema_drift; pin that the docs and DAG agree.
     result = bake_with(
         cookies, include_agentic=True, include_batch=True, include_lakehouse=lakehouse
     )
@@ -344,22 +344,6 @@ def test_readme_documents_the_failure_mode_this_bake_actually_ships(
 
     assert mode in readme
     assert f'FAILURE_MODES = ["none", "{mode}"]' in dag
-
-
-def test_pipeline_config_ships_only_where_there_is_no_ddl(cookies):
-    # batch/pipeline.toml is the declared source the missing_config failure
-    # validates against -- the role create_tables.sql plays when the
-    # Lakehouse Pattern is on. Shipping both would leave an unused one.
-    without = bake_with(cookies, include_batch=True, include_lakehouse=False)
-    slug = without.context["project_slug"]
-    assert (without.project_path / "src" / slug / "batch" / "config.py").is_file()
-    assert (without.project_path / "src" / slug / "batch" / "pipeline.toml").is_file()
-    assert (without.project_path / "tests" / "test_batch_config.py").is_file()
-
-    with_ddl = bake_with(cookies, include_batch=True, include_lakehouse=True)
-    assert not (with_ddl.project_path / "src" / slug / "batch" / "config.py").exists()
-    assert not (with_ddl.project_path / "src" / slug / "batch" / "pipeline.toml").exists()
-    assert not (with_ddl.project_path / "tests" / "test_batch_config.py").exists()
 
 
 # --------------------------------------------------------------------------
@@ -478,10 +462,10 @@ def _run(cwd, *args, env=None):
         ),
         (
             False,
-            "missing_config",
-            "output_file",
-            'output_setting="output_file"',
-            'output_setting="output_path"',
+            "schema_drift",
+            "customer_name",
+            '"customer_name": "example"',
+            '"name": "example"',
         ),
     ],
 )

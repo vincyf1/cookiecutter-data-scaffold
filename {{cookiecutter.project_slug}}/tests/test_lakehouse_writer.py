@@ -1,62 +1,47 @@
+import duckdb
 import pytest
 
-from {{ cookiecutter.project_slug }}.lakehouse import writer
-from {{ cookiecutter.project_slug }}.lakehouse.writer import (
-    SchemaDriftError,
-    declared_columns,
-    get_connection,
-    write_events,
-)
+from {{ cookiecutter.project_slug }}.events import Event
+from {{ cookiecutter.project_slug }}.lakehouse.writer import DuckDBEventSink
 
 
-def test_write_events_inserts_rows(tmp_path):
-    con = get_connection(str(tmp_path / "test.duckdb"))
-    write_events(con, [{"id": 1, "name": "example"}])
-    result = con.execute("SELECT id, name FROM events").fetchall()
-    assert result == [(1, "example")]
+def test_duckdb_sink_inserts_one_batch_transactionally(tmp_path):
+    database = tmp_path / "test.duckdb"
+    with DuckDBEventSink(database) as sink:
+        sink.write([Event(id=1, name="example"), Event(id=2, name="second")])
+        rows = sink.connection.execute("SELECT id, name FROM events ORDER BY id").fetchall()
+    assert rows == [(1, "example"), (2, "second")]
 
 
-def test_declared_columns_are_parsed_from_the_ddl():
-    assert declared_columns() == ["id", "name", "ingested_at"]
+def test_duckdb_sink_closes_connection_on_context_exit(tmp_path):
+    sink = DuckDBEventSink(tmp_path / "test.duckdb")
+    with sink:
+        pass
+    with pytest.raises(duckdb.ConnectionException):
+        sink.connection.execute("SELECT 1")
 
 
-def test_write_events_rejects_an_undeclared_field(tmp_path):
-    con = get_connection(str(tmp_path / "lakehouse.duckdb"))
-
-    with pytest.raises(SchemaDriftError) as excinfo:
-        write_events(con, [{"id": 1, "customer_name": "example"}])
-
-    message = str(excinfo.value)
-    assert "customer_name" in message
-    # "name" alone is a substring of the offending "customer_name" field, so
-    # it would pass even if the declared-columns list were dropped from the
-    # message entirely. Assert columns that can only come from the DDL side.
-    assert "id" in message
-    assert "ingested_at" in message
+def test_duckdb_sink_rolls_back_whole_batch_on_database_failure(tmp_path):
+    database = tmp_path / "test.duckdb"
+    with DuckDBEventSink(database) as sink:
+        sink.connection.execute("CREATE UNIQUE INDEX events_id ON events(id)")
+        with pytest.raises(duckdb.ConstraintException):
+            sink.write([Event(id=1, name="first"), Event(id=1, name="duplicate")])
+        rows = sink.connection.execute("SELECT id, name FROM events").fetchall()
+    assert rows == []
 
 
-def test_write_events_accepts_a_conforming_record(tmp_path):
-    con = get_connection(str(tmp_path / "lakehouse.duckdb"))
-    write_events(con, [{"id": 1, "name": "example"}])
-    assert con.execute("SELECT count(*) FROM events").fetchone()[0] == 1
+def test_empty_batch_is_a_noop(tmp_path):
+    with DuckDBEventSink(tmp_path / "test.duckdb") as sink:
+        sink.write([])
+        assert sink.connection.execute("SELECT count(*) FROM events").fetchone() == (0,)
 
 
-def test_declared_columns_ignores_a_table_level_constraint(tmp_path, monkeypatch):
-    ddl = tmp_path / "create_tables.sql"
-    ddl.write_text(
-        "CREATE TABLE IF NOT EXISTS events (\n"
-        "    id BIGINT,\n"
-        "    name VARCHAR,\n"
-        "    PRIMARY KEY (id)\n"
-        ");\n"
-    )
-    monkeypatch.setattr(writer, "DDL_PATH", ddl)
-    assert writer.declared_columns() == ["id", "name"]
-
-
-def test_declared_columns_raises_loudly_on_an_unparseable_fragment(tmp_path, monkeypatch):
-    ddl = tmp_path / "create_tables.sql"
-    ddl.write_text("CREATE TABLE IF NOT EXISTS events (\n    ???not_a_column???\n);\n")
-    monkeypatch.setattr(writer, "DDL_PATH", ddl)
-    with pytest.raises(ValueError, match="cannot parse a column definition"):
-        writer.declared_columns()
+def test_failed_initialization_closes_connection(tmp_path, monkeypatch):
+    connection = duckdb.connect(str(tmp_path / "test.duckdb"))
+    monkeypatch.setattr(duckdb, "connect", lambda destination: connection)
+    monkeypatch.setattr("{{ cookiecutter.project_slug }}.lakehouse.writer.DDL_PATH", tmp_path / "missing")
+    with pytest.raises(FileNotFoundError), DuckDBEventSink(tmp_path / "test.duckdb"):
+        pass
+    with pytest.raises(duckdb.ConnectionException):
+        connection.execute("SELECT 1")

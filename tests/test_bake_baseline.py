@@ -133,3 +133,16 @@ def test_hooks_do_not_execute_code_injected_via_project_name(cookies):
     finally:
         if os.path.exists(marker):
             os.remove(marker)
+
+
+def test_no_ingestion_patterns_omit_storage_adapter_dependencies(cookies):
+    result = bake_with(cookies, include_batch=False, include_streaming=False,
+                       include_lakehouse=False, include_dbt=True, include_agentic=False)
+    project = result.project_path
+    slug = result.context["project_slug"]
+    assert not (project / "src" / slug / "events.py").exists()
+    assert not (project / "tests" / "test_events.py").exists()
+    assert not (project / "tests" / "test_parquet_sink.py").exists()
+    pyproject = (project / "pyproject.toml").read_text()
+    assert '"pyarrow' not in pyproject
+    assert '"duckdb' not in pyproject

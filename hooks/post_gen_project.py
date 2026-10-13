@@ -23,10 +23,10 @@ PATTERNS = [
         "remove": [
             f"src/{SLUG}/batch",
             "tests/test_batch_dag.py",
-            "tests/test_batch_config.py",
             "logs",
         ],
         "gated": [
+            "README.md",
             "docker-compose.yml",
             "pyproject.toml",
         ],
@@ -37,9 +37,9 @@ PATTERNS = [
         "remove": [
             f"src/{SLUG}/streaming",
             "tests/test_streaming_consumer.py",
-            "tests/test_streaming_sinks.py",
         ],
         "gated": [
+            "README.md",
             "docker-compose.yml",
             "pyproject.toml",
         ],
@@ -54,18 +54,17 @@ PATTERNS = [
             f"src/{SLUG}/agentic/create_traces_table.sql",
         ],
         "gated": [
+            "README.md",
             "docker-compose.yml",
             "pyproject.toml",
+            "tests/test_parquet_sink.py",
+            "tests/test_batch_dag.py",
             f"src/{SLUG}/sinks.py",
-            f"src/{SLUG}/batch/sinks.py",
-            f"src/{SLUG}/streaming/sinks.py",
-            "tests/test_streaming_sinks.py",
+            f"src/{SLUG}/batch/dags/example_dag.py",
+            f"src/{SLUG}/streaming/consumer.py",
             f"src/{SLUG}/agentic/tracing.py",
             "tests/test_agentic_tracing.py",
-            f"src/{SLUG}/batch/dags/example_dag.py",
-            "tests/test_batch_dag.py",
             "tests/test_agentic_healing.py",
-            "README.md",
             "transformation/dbt_project.yml",
             "transformation/models/staging/stg_events.sql",
             "transformation/profiles.yml",
@@ -117,16 +116,11 @@ COMPOUND_REMOVALS = [
     # Pattern of its own), so it's dropped only when neither caller survives.
     ({{ cookiecutter.include_batch or cookiecutter.include_streaming }}, [
         f"src/{SLUG}/sinks.py",
+        "tests/test_parquet_sink.py",
     ]),
-    # batch/pipeline.toml plays the role lakehouse/create_tables.sql plays
-    # when the Lakehouse Pattern is on: the single declared source a lookup
-    # is validated against, and the demo's diagnosable failure. With the
-    # Lakehouse Pattern present the DDL is that source, so shipping these
-    # too would leave a second, unused one behind.
-    ({{ cookiecutter.include_batch and not cookiecutter.include_lakehouse }}, [
-        f"src/{SLUG}/batch/config.py",
-        f"src/{SLUG}/batch/pipeline.toml",
-        "tests/test_batch_config.py",
+    ({{ cookiecutter.include_batch or cookiecutter.include_streaming or cookiecutter.include_lakehouse }}, [
+        f"src/{SLUG}/events.py",
+        "tests/test_events.py",
     ]),
 ]
 

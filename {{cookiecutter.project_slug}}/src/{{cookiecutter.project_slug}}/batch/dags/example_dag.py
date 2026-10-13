@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 from airflow.sdk import Param, dag, task
 {%- if cookiecutter.include_agentic %}
@@ -11,25 +12,18 @@ from {{ cookiecutter.project_slug }}.agentic.dags.healing_dag import (
     record_failure,
 )
 {% endif -%}
-from {{ cookiecutter.project_slug }}.batch.sinks import write_events
-
-{%- if cookiecutter.include_lakehouse %}
-
-# Off by default: the shipped demo behaves exactly as it did before the
-# self-healing loop existed. Set failure_mode=schema_drift to trigger the
-# healing task.
-FAILURE_MODES = ["none", "schema_drift"]
+from {{ cookiecutter.project_slug }}.events import Event
+from {{ cookiecutter.project_slug }}.sinks import create_event_sink
+{% if cookiecutter.include_lakehouse %}
+DEFAULT_DESTINATION = Path("lakehouse.duckdb")
 {%- else %}
+DEFAULT_DESTINATION = Path("data/events/batch")
+{%- endif %}
 
 # Off by default: the shipped demo behaves exactly as it did before the
-# self-healing loop existed. Set failure_mode=missing_config to trigger the
-# healing task.
-#
-# Without the Lakehouse Pattern there is no DDL for a record to drift away
-# from, so the demo's diagnosable failure is a config lookup that names a
-# setting batch/pipeline.toml does not declare.
-FAILURE_MODES = ["none", "missing_config"]
-{%- endif %}
+# self-healing loop existed. Set failure_mode=schema_drift to make extract()
+# emit a record that no longer matches the Event contract in events.py.
+FAILURE_MODES = ["none", "schema_drift"]
 
 
 # Airflow expects a timezone-aware start_date; a naive datetime here is a
@@ -43,12 +37,9 @@ FAILURE_MODES = ["none", "missing_config"]
 def example_events_dag():
     @task
     def extract(**context) -> list[dict]:
-{%- if cookiecutter.include_lakehouse %}
-        mode = context["params"]["failure_mode"]
-        if mode == "schema_drift":
-            # `customer_name` is not a column in lakehouse/create_tables.sql.
+        if context["params"]["failure_mode"] == "schema_drift":
+            # The producer renamed `name`; the Event contract still declares it.
             return [{"id": 1, "customer_name": "example"}]
-{%- endif %}
         return [{"id": 1, "name": "example"}]
 
 {%- if cookiecutter.include_agentic %}
@@ -58,18 +49,10 @@ def example_events_dag():
 
     @task
 {%- endif %}
-    def load(records: list[dict], **context) -> None:
-{%- if cookiecutter.include_lakehouse %}
-        write_events(records)
-{%- else %}
-        mode = context["params"]["failure_mode"]
-        if mode == "missing_config":
-            # `output_file` is not declared in batch/pipeline.toml; the
-            # setting that names the destination is `output_path`.
-            write_events(records, output_setting="output_file")
-            return
-        write_events(records)
-{%- endif %}
+    def load(records: list[dict]) -> None:
+        events = [Event.from_mapping(record) for record in records]
+        with create_event_sink(DEFAULT_DESTINATION) as sink:
+            sink.write(events)
 {%- if cookiecutter.include_agentic %}
 
     loaded = load(extract())

@@ -102,11 +102,13 @@ cookiecutter gh:vincyf1/cookiecutter-data-scaffold --no-input \
 
 Patterns are independent and combinable — enabling or disabling one never requires or excludes another:
 
-- **Batch** scaffolds `src/<slug>/batch/`, an example Airflow DAG, and its tests.
-- **Streaming** scaffolds `src/<slug>/streaming/`, a consumer and sinks, and its tests.
-- **Lakehouse** scaffolds `src/<slug>/lakehouse/`, DuckDB table DDL, and a writer that Batch/Streaming sinks write through — it's a storage layer, not an ingestion mechanism.
+- **Batch** scaffolds `src/<slug>/batch/`, an example Airflow DAG, and its tests. Each load task owns a shared typed `EventSink`.
+- **Streaming** scaffolds `src/<slug>/streaming/`, a consumer and its tests. One shared typed `EventSink` serves the consumer lifetime.
+- **Lakehouse** scaffolds `src/<slug>/lakehouse/`, DuckDB table DDL, and a context-managed transactional adapter that Batch/Streaming write through — it's a storage layer, not an ingestion mechanism.
 - **Transformation** scaffolds `transformation/`, a dbt project with a staging model, and defaults to its own local DuckDB target so it works even without Lakehouse enabled.
 - **Agentic** scaffolds `src/<slug>/agentic/`, a healing task wired into the Batch DAG with `trigger_rule=ALL_FAILED`, JSON-array run traces, and an `evals/` suite. It is the one Pattern with a dependency: it requires **Batch**, since there is no DAG to heal without one.
+
+Without Lakehouse, Batch and Streaming write immutable partitioned Parquet files.
 
 ### Running the template's own test suite
 

@@ -15,24 +15,14 @@ Trigger the demo DAG with the failure injected:
 ```bash
 docker compose up -d airflow-standalone
 # In the Airflow UI, trigger example_events_dag with config:
-{%- if cookiecutter.include_lakehouse %}
 #   {"failure_mode": "schema_drift"}
-{%- else %}
-#   {"failure_mode": "missing_config"}
-{%- endif %}
 ```
 
-{% if cookiecutter.include_lakehouse -%}
-`extract` emits a record keyed `customer_name`, which is not a column in
-`src/{{ cookiecutter.project_slug }}/lakehouse/create_tables.sql`, so `load`
-raises `SchemaDriftError` naming the offending field and the declared columns.
-{%- else -%}
-`load` asks for a pipeline setting called `output_file`, which
-`src/{{ cookiecutter.project_slug }}/batch/pipeline.toml` does not declare, so
-it raises `MissingConfigError` naming the setting it wanted and the settings
-that exist. (With the Lakehouse Pattern enabled the demo instead ships a
-schema-drift failure against the events DDL.)
-{%- endif %}
+`extract` emits a record keyed `customer_name` instead of `name`. `load` turns
+each record into an `Event` before writing it, so it raises `SchemaDriftError`
+naming the missing field, the undeclared one, and the fields the contract in
+`src/{{ cookiecutter.project_slug }}/events.py` declares. This works with or
+without the Lakehouse Pattern.
 
 The `load` task fails, the `heal_on_failure` task runs, and you get, under the
 project root:
@@ -87,3 +77,29 @@ uv run pytest evals/ -m graded      # runs the model, then grades the run
 Add a case by dropping a YAML file into `evals/cases/`. Graded runs write a
 report to `evals/reports/`.
 {%- endif %}
+
+{% if cookiecutter.include_batch or cookiecutter.include_streaming %}
+## Event ingestion
+
+Batch and Streaming write validated, immutable `Event` values through the
+context-managed `EventSink` interface. Use `create_event_sink(destination)`
+with an explicit `Path` to select a destination.
+
+{% if cookiecutter.include_lakehouse %}
+The DuckDB adapter owns one connection per context and commits each batch as
+one transaction, rolling back the batch on an insert failure. Both ingestion
+patterns default to `lakehouse.duckdb`.
+{% else %}
+The Parquet adapter publishes one immutable `part-<id>.parquet` file per nonempty
+batch. Files are written to a temporary path and renamed only after success.
+Defaults are `data/events/batch/` and `data/events/streaming/`.
+{% endif %}
+
+{% if cookiecutter.include_batch %}
+The Airflow load task opens one sink per task run and validates records before writing.
+{% endif %}
+{% if cookiecutter.include_streaming %}
+The Kafka consumer opens one sink for the consumer lifetime, skips malformed events,
+and closes its resources on exit. Storage failures propagate to the caller.
+{% endif %}
+{% endif %}
