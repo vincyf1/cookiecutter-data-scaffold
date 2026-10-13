@@ -7,7 +7,7 @@
 <p align="center">
   A flexible, multi-pattern <a href="https://cookiecutter.readthedocs.io/">cookiecutter</a> template for Data Engineering projects.
   <br>
-  Pick the Patterns you need — Batch, Streaming, Lakehouse, Transformation — and generate a ready-to-run project.
+  Pick the Patterns you need — Batch, Streaming, Lakehouse, Transformation, Agentic — and generate a ready-to-run project.
 </p>
 
 <p align="center">
@@ -52,7 +52,7 @@ uv pip install cookiecutter
 cookiecutter gh:vincyf1/cookiecutter-data-scaffold
 ```
 
-You'll be prompted for your project name, author, and which Patterns to include. To skip the prompts and accept the defaults (all Patterns enabled):
+You'll be prompted for your project name, author, and which Patterns to include. To skip the prompts and accept the defaults (every Pattern except Agentic, which is opt-in):
 
 ```bash
 cookiecutter gh:vincyf1/cookiecutter-data-scaffold --no-input
@@ -100,7 +100,7 @@ cookiecutter gh:vincyf1/cookiecutter-data-scaffold --no-input \
 
 ### Patterns
 
-Patterns are independent and combinable — enabling or disabling one never requires or excludes another:
+Patterns are independent and combinable, with one exception: Agentic requires Batch.
 
 - **Batch** scaffolds `src/<slug>/batch/`, an example Airflow DAG, and its tests. Each load task owns a shared typed `EventSink`.
 - **Streaming** scaffolds `src/<slug>/streaming/`, a consumer and its tests. One shared typed `EventSink` serves the consumer lifetime.
@@ -109,6 +109,23 @@ Patterns are independent and combinable — enabling or disabling one never requ
 - **Agentic** scaffolds `src/<slug>/agentic/`, a healing task wired into the Batch DAG with `trigger_rule=ALL_FAILED`, JSON-array run traces, and an `evals/` suite. It is the one Pattern with a dependency: it requires **Batch**, since there is no DAG to heal without one.
 
 Without Lakehouse, Batch and Streaming write immutable partitioned Parquet files.
+
+### Trying the Agentic Pattern
+
+Generate a project with the Pattern enabled:
+
+```bash
+cookiecutter gh:vincyf1/cookiecutter-data-scaffold --no-input include_agentic=true
+```
+
+The example DAG takes a `failure_mode` param, `"none"` by default. Trigger `example_events_dag` with `{"failure_mode": "schema_drift"}` and `extract` emits `customer_name` where the `Event` contract in `events.py` declares `name`. `load` raises `SchemaDriftError`, and `heal_on_failure` hands the failure to the agent. This works with or without Lakehouse.
+
+The agent reads the task log and the project's files, then proposes a patch. It cannot run shell commands, read `.git/` or credential files, or patch anything outside `src/` and `transformation/`. Nothing is applied automatically:
+
+- By default the patch is written to `artifacts/<trace_id>.patch`, ready to `git apply`.
+- With `AGENTIC_GITHUB_REPO=owner/repo`, it is pushed to an `agentic/heal-*` branch and opened as a pull request instead. CI runs on that branch before anyone reviews it.
+
+Live runs need `ANTHROPIC_API_KEY`. The generated test suite does not: its evals replay recorded model runs, and the `live` and `graded` tiers that call the model are opt-in (`uv run pytest evals/ -m live`). The generated project's README covers configuration, traces and evals in full.
 
 ### Running the template's own test suite
 
