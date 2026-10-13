@@ -227,10 +227,19 @@ def propose_patch(
     if not relative.parts or relative.parts[0] not in PATCHABLE_ROOTS:
         roots = ", ".join(f"{name}/" for name in PATCHABLE_ROOTS)
         raise ToolError(f"'{path}' cannot be patched; only files under {roots} can")
+    # Every edit is recorded under the path the file system resolved, never
+    # the model's spelling of it: render_diff writes this into the patch
+    # header, and that header is what `git apply` acts on.
+    canonical = relative.as_posix()
+    if any(char.isspace() or not char.isprintable() for char in canonical):
+        raise ToolError(
+            f"'{path}' cannot be patched; whitespace and control characters "
+            "cannot appear in a patch header"
+        )
     if not target.is_file():
         raise ToolError(f"no such file: {path}")
-    prior_edits = [edit for edit in ctx.edits if edit.path == path]
-    accumulated = _apply_staged_edits(target.read_text(), prior_edits, path)
+    prior_edits = [edit for edit in ctx.edits if edit.path == canonical]
+    accumulated = _apply_staged_edits(target.read_text(), prior_edits, canonical)
     occurrences = accumulated.count(old_str)
     if occurrences != 1:
         raise ToolError(
@@ -238,9 +247,9 @@ def propose_patch(
             "Include more surrounding context to make it unique."
         )
     ctx.edits.append(
-        ProposedEdit(path=path, old_str=old_str, new_str=new_str, rationale=rationale)
+        ProposedEdit(path=canonical, old_str=old_str, new_str=new_str, rationale=rationale)
     )
-    return f"staged edit {len(ctx.edits)} for {path}"
+    return f"staged edit {len(ctx.edits)} for {canonical}"
 
 
 def render_diff(ctx: ToolContext) -> str:

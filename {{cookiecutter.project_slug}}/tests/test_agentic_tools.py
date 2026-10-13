@@ -348,3 +348,36 @@ def test_read_repo_file_refuses_the_git_directory(ctx, tmp_path, path):
 @pytest.mark.parametrize("name", [".netrc", ".pypirc", "_netrc"])
 def test_credential_guard_covers_netrc_and_pypirc(name):
     assert is_credential_file(Path(name))
+
+
+def test_propose_patch_records_the_canonical_path_git_apply_will_use(ctx):
+    # The diff header is what `git apply` acts on; it must name the file that
+    # was validated, not whatever spelling the model chose for it.
+    propose_patch(ctx, "./src/../src/dag.py", "customer_name", "name", "fix")
+    assert ctx.edits[0].path == "src/dag.py"
+    diff = render_diff(ctx)
+    assert diff.startswith("--- a/src/dag.py\n+++ b/src/dag.py\n")
+
+
+def test_two_spellings_of_one_file_produce_one_coherent_hunk(ctx):
+    (ctx.project_root / "src" / "dag.py").write_text("a = 1\nb = 2\n")
+    propose_patch(ctx, "src/dag.py", "a = 1", "a = 10", "first")
+    propose_patch(ctx, "./src/dag.py", "b = 2", "b = 20", "second")
+    diff = render_diff(ctx)
+    assert diff.count("--- a/") == 1
+    assert "+a = 10" in diff and "+b = 20" in diff
+
+
+def test_propose_patch_records_a_symlinks_target_not_the_link(ctx, tmp_path):
+    (tmp_path / "src" / "alias.py").symlink_to(tmp_path / "src" / "dag.py")
+    propose_patch(ctx, "src/alias.py", "customer_name", "name", "fix")
+    assert ctx.edits[0].path == "src/dag.py"
+
+
+# A real file name cannot contain "/", but a newline is enough to start a
+# forged "+++ b/..." header line of its own.
+@pytest.mark.parametrize("name", ["evil.py\n+++ b", "tab\there.py", "sp ace.py"])
+def test_propose_patch_refuses_a_path_that_could_forge_a_diff_header(ctx, tmp_path, name):
+    (tmp_path / "src" / name).write_text("customer_name\n")
+    with pytest.raises(ToolError, match="cannot appear in a patch header"):
+        propose_patch(ctx, f"src/{name}", "customer_name", "name", "steered")
