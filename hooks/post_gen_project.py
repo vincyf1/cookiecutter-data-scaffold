@@ -59,6 +59,7 @@ PATTERNS = [
             "pyproject.toml",
             "tests/test_parquet_sink.py",
             "tests/test_batch_dag.py",
+            "tests/test_events.py",
             f"src/{SLUG}/sinks.py",
             f"src/{SLUG}/batch/dags/example_dag.py",
             f"src/{SLUG}/streaming/consumer.py",

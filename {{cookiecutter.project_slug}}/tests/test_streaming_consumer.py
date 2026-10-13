@@ -75,7 +75,10 @@ def test_run_owns_one_sink_for_consumer_lifetime():
     assert consumer.closed is True
 
 
-@pytest.mark.parametrize("payload", [None, b"null", b"[]", b'{"id": true, "name": "bad"}'])
+@pytest.mark.parametrize(
+    "payload",
+    [None, b"null", b"[]", b'{"id": true, "name": "bad"}', b'{"id": 3, "customer_name": "x"}'],
+)
 def test_run_skips_invalid_payload_and_continues(payload):
     consumer = Consumer()
     consumer.messages = iter([Message(payload), Message(b'{"id": 2, "name": "ok"}')])

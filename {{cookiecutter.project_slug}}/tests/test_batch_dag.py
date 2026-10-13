@@ -62,6 +62,21 @@ def test_load_persists_validated_events(tmp_path, monkeypatch):
     assert len(files) == 1
     assert pq.read_table(files[0]).to_pylist() == [{"id": 7, "name": "loaded"}]
 {%- endif %}
+
+
+def test_the_drift_record_fails_load_with_a_diagnosable_error(tmp_path, monkeypatch):
+    # The demo's failure must raise through the real load path, in every
+    # configuration, with a message the healer can diagnose from.
+    import importlib
+
+    from {{ cookiecutter.project_slug }}.events import SchemaDriftError
+
+    module = importlib.import_module("{{ cookiecutter.project_slug }}.batch.dags.example_dag")
+    monkeypatch.setattr(module, "DEFAULT_DESTINATION", tmp_path / "output")
+    dag = example_events_dag()
+
+    with pytest.raises(SchemaDriftError, match="customer_name"):
+        dag.get_task("load").python_callable([{"id": 1, "customer_name": "example"}])
 {%- if cookiecutter.include_agentic %}
 
 
